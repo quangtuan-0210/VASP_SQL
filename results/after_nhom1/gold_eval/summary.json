@@ -1,0 +1,67 @@
+{
+  "evaluated": 1534,
+  "gold_exec_errors": 0,
+  "status_counts": {
+    "UNCHANGED": 1533,
+    "REPAIRED": 1
+  },
+  "unchanged_rate_pct": 99.93,
+  "false_alarm_rate_pct": 0.07,
+  "regression_count": 1,
+  "regression_rate_pct": 0.07,
+  "first_failing_gate": {
+    "B": 1
+  },
+  "false_alarm_buckets": {
+    "unjoined": 1
+  },
+  "per_db": {
+    "california_schools": {
+      "UNCHANGED": 89
+    },
+    "card_games": {
+      "UNCHANGED": 191
+    },
+    "codebase_community": {
+      "UNCHANGED": 185,
+      "REPAIRED": 1
+    },
+    "debit_card_specializing": {
+      "UNCHANGED": 64
+    },
+    "european_football_2": {
+      "UNCHANGED": 129
+    },
+    "financial": {
+      "UNCHANGED": 106
+    },
+    "formula_1": {
+      "UNCHANGED": 174
+    },
+    "student_club": {
+      "UNCHANGED": 158
+    },
+    "superhero": {
+      "UNCHANGED": 129
+    },
+    "thrombosis_prediction": {
+      "UNCHANGED": 163
+    },
+    "toxicology": {
+      "UNCHANGED": 145
+    }
+  },
+  "per_difficulty": {
+    "simple": {
+      "UNCHANGED": 924,
+      "REPAIRED": 1
+    },
+    "moderate": {
+      "UNCHANGED": 464
+    },
+    "challenging": {
+      "UNCHANGED": 145
+    }
+  },
+  "elapsed_s": 85.9
+}

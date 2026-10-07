@@ -1,0 +1,63 @@
+{
+  "seed": 42,
+  "per_type_cap": 300,
+  "elapsed_s": 139.2,
+  "skipped": {
+    "column_typo": {},
+    "table_typo": {},
+    "join_drop": {
+      "not_applicable": 109,
+      "ineffective": 21
+    }
+  },
+  "results": {
+    "column_typo": {
+      "n": 300,
+      "FIXED": 64,
+      "WRONG_FIX": 0,
+      "ABSTAIN": 236,
+      "MISSED": 0,
+      "CRASH": 0,
+      "repair_success_rate_pct": 21.33,
+      "false_repair_rate_pct": 0.0,
+      "abstention_rate_pct": 78.67,
+      "avg_ast_edit_fixed": 0.98
+    },
+    "table_typo": {
+      "n": 300,
+      "FIXED": 3,
+      "WRONG_FIX": 0,
+      "ABSTAIN": 297,
+      "MISSED": 0,
+      "CRASH": 0,
+      "repair_success_rate_pct": 1.0,
+      "false_repair_rate_pct": 0.0,
+      "abstention_rate_pct": 99.0,
+      "avg_ast_edit_fixed": 0.0
+    },
+    "join_drop": {
+      "n": 300,
+      "FIXED": 0,
+      "WRONG_FIX": 0,
+      "ABSTAIN": 247,
+      "MISSED": 53,
+      "CRASH": 0,
+      "repair_success_rate_pct": 0.0,
+      "false_repair_rate_pct": 0.0,
+      "abstention_rate_pct": 82.33,
+      "avg_ast_edit_fixed": null
+    },
+    "ALL": {
+      "n": 900,
+      "FIXED": 67,
+      "WRONG_FIX": 0,
+      "ABSTAIN": 780,
+      "MISSED": 53,
+      "CRASH": 0,
+      "repair_success_rate_pct": 7.44,
+      "false_repair_rate_pct": 0.0,
+      "abstention_rate_pct": 86.67,
+      "avg_ast_edit_fixed": 0.94
+    }
+  }
+}

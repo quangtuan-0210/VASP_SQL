@@ -1,0 +1,83 @@
+{
+  "evaluated": 1534,
+  "gold_exec_errors": 0,
+  "status_counts": {
+    "UNCHANGED": 1488,
+    "ABSTAIN": 44,
+    "REPAIRED": 2
+  },
+  "unchanged_rate_pct": 97.0,
+  "false_alarm_rate_pct": 3.0,
+  "regression_count": 1,
+  "regression_rate_pct": 0.07,
+  "first_failing_gate": {
+    "B": 45,
+    "E": 1
+  },
+  "false_alarm_buckets": {
+    "unjoined": 32,
+    "could not be resolved": 13,
+    "timed out": 1
+  },
+  "per_db": {
+    "california_schools": {
+      "UNCHANGED": 87,
+      "ABSTAIN": 2
+    },
+    "card_games": {
+      "UNCHANGED": 175,
+      "ABSTAIN": 16
+    },
+    "codebase_community": {
+      "UNCHANGED": 174,
+      "ABSTAIN": 10,
+      "REPAIRED": 2
+    },
+    "debit_card_specializing": {
+      "UNCHANGED": 63,
+      "ABSTAIN": 1
+    },
+    "european_football_2": {
+      "UNCHANGED": 122,
+      "ABSTAIN": 7
+    },
+    "financial": {
+      "UNCHANGED": 106
+    },
+    "formula_1": {
+      "UNCHANGED": 170,
+      "ABSTAIN": 4
+    },
+    "student_club": {
+      "UNCHANGED": 158
+    },
+    "superhero": {
+      "UNCHANGED": 129
+    },
+    "thrombosis_prediction": {
+      "UNCHANGED": 161,
+      "ABSTAIN": 2
+    },
+    "toxicology": {
+      "UNCHANGED": 143,
+      "ABSTAIN": 2
+    }
+  },
+  "per_difficulty": {
+    "simple": {
+      "UNCHANGED": 899,
+      "ABSTAIN": 25,
+      "REPAIRED": 1
+    },
+    "moderate": {
+      "UNCHANGED": 451,
+      "ABSTAIN": 12,
+      "REPAIRED": 1
+    },
+    "challenging": {
+      "UNCHANGED": 138,
+      "ABSTAIN": 7
+    }
+  },
+  "elapsed_s": 108.2
+}

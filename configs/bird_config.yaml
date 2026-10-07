@@ -1,0 +1,46 @@
+# Configuration for BIRD benchmark on SQLite
+benchmark:
+  name: "BIRD"
+  dialect: "sqlite"
+  split: "dev"
+  dataset_root: "D:/Projects/VAST_SQL/datasets/bird/dev_20240627"
+  dev_json_path: "D:/Projects/VAST_SQL/datasets/bird/dev_20240627/dev.json"
+  dev_tables_path: "D:/Projects/VAST_SQL/datasets/bird/dev_20240627/dev_tables.json"
+  databases_dir: "D:/Projects/VAST_SQL/datasets/bird/dev_20240627/dev_databases"
+
+# Safety Sandbox Settings (Gate D & E)
+safety:
+  read_only: true
+  forbid_ddl_dml: true
+  timeout_seconds: 5.0
+  max_rows: 1000
+
+# Repair Budget
+repair_budget:
+  max_candidates: 5
+  max_llm_calls: 2
+  max_time_seconds: 15.0
+  max_ast_edit_nodes: 10
+  min_confidence_threshold: 0.75
+
+# Evaluation & Generators
+generators:
+  g1_single_agent:
+    name: "Baseline-Single-Agent"
+    type: "zero_shot_prompt"
+  g2_mac_sql:
+    name: "MAC-SQL"
+    type: "multi_agent_decomposition"
+  g3_langchain:
+    name: "LangChain-SQL-Agent"
+    type: "tool_agent"
+    max_iterations: 5
+
+metrics:
+  - "ExecutionAccuracy"
+  - "RepairSuccessRate"
+  - "RegressionRate"
+  - "FalseRepairRate"
+  - "AbstentionRate"
+  - "ASTEditSize"
+  - "LatencyAndCost"

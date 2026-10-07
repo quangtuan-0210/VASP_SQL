@@ -1,0 +1,73 @@
+{
+  "evaluated": 1218,
+  "gold_exec_errors": 1,
+  "status_counts": {
+    "UNCHANGED": 1191,
+    "ABSTAIN": 24,
+    "REPAIRED": 3
+  },
+  "unchanged_rate_pct": 97.78,
+  "false_alarm_rate_pct": 2.22,
+  "regression_count": 0,
+  "regression_rate_pct": 0.0,
+  "first_failing_gate": {
+    "B": 27
+  },
+  "false_alarm_buckets": {
+    "unjoined": 19,
+    "could not be resolved": 8
+  },
+  "per_db": {
+    "california_schools": {
+      "UNCHANGED": 87,
+      "ABSTAIN": 2
+    },
+    "card_games": {
+      "UNCHANGED": 174,
+      "ABSTAIN": 13,
+      "REPAIRED": 3
+    },
+    "debit_card_specializing": {
+      "UNCHANGED": 63,
+      "ABSTAIN": 1
+    },
+    "financial": {
+      "UNCHANGED": 106
+    },
+    "formula_1": {
+      "UNCHANGED": 170,
+      "ABSTAIN": 4
+    },
+    "student_club": {
+      "UNCHANGED": 158
+    },
+    "superhero": {
+      "UNCHANGED": 129
+    },
+    "thrombosis_prediction": {
+      "UNCHANGED": 161,
+      "ABSTAIN": 2
+    },
+    "toxicology": {
+      "UNCHANGED": 143,
+      "ABSTAIN": 2
+    }
+  },
+  "per_difficulty": {
+    "simple": {
+      "UNCHANGED": 697,
+      "ABSTAIN": 11,
+      "REPAIRED": 1
+    },
+    "moderate": {
+      "UNCHANGED": 374,
+      "ABSTAIN": 7,
+      "REPAIRED": 2
+    },
+    "challenging": {
+      "UNCHANGED": 120,
+      "ABSTAIN": 6
+    }
+  },
+  "elapsed_s": 85.3
+}

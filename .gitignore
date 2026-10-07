@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.env
+.venv
+env/
+venv/
+
+# Pytest & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Word/Office documents (tài liệu nghiên cứu - không đưa lên)
+*.docx
+*.doc
+*.pdf
+
+# SQLite databases (dữ liệu thực nghiệm - không đưa lên)
+*.sqlite
+*.db
+
+# BIRD benchmark dataset (quá nặng, không đưa lên)
+datasets/
+
+# Temp / scratch
+*.log
+*.tmp
