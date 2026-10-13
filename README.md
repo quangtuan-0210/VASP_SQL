@@ -24,8 +24,7 @@ theo kế hoạch `VASP-SQL_Plan.docx`.
 | Lỗi nhân tạo mới (seed 2027, chỉ câu report), 900 câu | Sửa đúng **92,2%**, sửa sai 0,4%; cột 96,7% · bảng 100% · thiếu JOIN 80,0%; trung bình 2,8 nút AST thay đổi |
 | Cùng bộ đó, cấu hình **AST-only** (không đồ thị schema, không sửa giá trị) | 65,6% — thiếu JOIN **0%** → đồ thị schema đóng góp rõ |
 
-Kết quả trên SQL do 3 AI sinh (G1 / G2 / G3) cùng các đối chứng: xem `results/KET_QUA_REPORT.md` sau khi chạy
-(đang chạy lại bằng mô hình mới — xem `results/report/TIEN_DO.md`). Số liệu giai đoạn phát triển: `results/PHU_LUC_TUNE_QWEN.md`.
+Kết quả trên SQL do 3 AI sinh (G1 / G2 / G3) cùng các đối chứng: chạy `scripts/stats_report.py` sau khi chạy xong các cấu hình.
 
 ---
 
@@ -60,7 +59,6 @@ VAST_SQL/
 │   ├── stats_report.py     # Thống kê cuối: CI 95% bootstrap, McNemar, theo độ khó/db/loại lỗi, chi phí
 │   └── test_llm_connection.py
 ├── tests/                  # 60 test tự động
-├── results/                # Kết quả (xem results/README.md)
 └── third_party/MAC-SQL/    # Mã MAC-SQL (không có LICENSE — chỉ dùng nội bộ, không phân phối lại)
 ```
 
@@ -92,9 +90,9 @@ Chạy thí nghiệm (mọi script có `--resume` và `--max-seconds` để ch�
 
 ```powershell
 # không cần LLM
-py scripts/eval_gold.py --split report --out results/report/gold_eval
-py scripts/eval_corrupted.py --split report --seed 2027 --gold-results results/report/gold_eval/per_sample.jsonl --out results/report/corrupted_eval
-py scripts/eval_corrupted.py ... --ast-only --out results/report/corrupted_eval_ast_only
+py scripts/eval_gold.py --split report --out <thư mục kết quả gold>
+py scripts/eval_corrupted.py --split report --seed 2027 --gold-results <thư mục kết quả gold>/per_sample.jsonl --out <thư mục kết quả>
+py scripts/eval_corrupted.py ... --ast-only --out <thư mục kết quả AST-only>
 
 # 3 AI sinh SQL (cần LLM)
 py scripts/run_generator.py --gen g1 --split report --workers 8 --resume
@@ -114,7 +112,7 @@ py scripts/stats_report.py --split report --price-in 0.09 --price-out 0.55
 
 ## Quy tắc thực nghiệm
 
-- Tập **tune** dùng để chỉnh phương pháp; tập **report** chỉ chạy khi code đã đóng băng
-  (mã băm trong `results/CODE_DONG_BANG.txt`).
-- Mọi câu trả lời LLM được lưu đệm (`results/llm_cache.jsonl`) để chạy lại không tốn thêm và kiểm tra lại được.
+- Tập **tune** dùng để chỉnh phương pháp; tập **report** chỉ chạy khi code đã đóng băng (lưu mã băm của code trước khi chạy).
+- Mọi câu trả lời LLM được lưu đệm để chạy lại không tốn thêm và kiểm tra lại được.
+- Kết quả thực nghiệm chỉ lưu trên máy, không đưa lên git.
 - Chú thích trong code viết bằng tiếng Việt; prompt gửi LLM giữ tiếng Anh.
