@@ -38,4 +38,4 @@ py -m pip install -r requirements.txt
 ```powershell
 py -m pytest -v
 ```
-*(Hiện tại 11/11 bài test của Giai đoạn 1 và 2 đều đã vượt qua 100%)*
+
