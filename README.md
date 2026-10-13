@@ -54,51 +54,112 @@ VAST_SQL/
 
 ---
 
-## Cài đặt & chạy
+## Hướng dẫn chạy
+
+Các lệnh dưới đây chạy trong thư mục gốc của project (Windows dùng `py`, Linux/macOS dùng `python`).
+
+### Bước 1 — Cài thư viện
 
 ```powershell
 py -m pip install -r requirements.txt
-copy .env.example .env      # điền VT_BASE_URL, VT_API_KEY, VT_MODEL_LLM (và VT_REASONING_EFFORT nếu cần)
 ```
 
-`.env` (không đưa lên git):
+### Bước 2 — Chuẩn bị dữ liệu BIRD
 
-| Biến | Ý nghĩa |
+Tải bộ **BIRD dev** về máy, rồi mở `configs/bird_config.yaml` và sửa các đường dẫn
+(`dev_json_path`, `dev_tables_path`, `databases_dir`) cho đúng chỗ đã lưu.
+
+Nếu muốn chạy G2 (MAC-SQL): đặt mã MAC-SQL vào `third_party/MAC-SQL`
+(hoặc đặt biến môi trường `VT_MACSQL_DIR` trỏ tới thư mục đó).
+
+### Bước 3 — Khai báo mô hình LLM
+
+Chép file mẫu rồi điền thông tin:
+
+```powershell
+copy .env.example .env
+```
+
+| Biến trong `.env` | Điền gì |
 |---|---|
-| `VT_BASE_URL` | Địa chỉ API chuẩn OpenAI (VD `https://openrouter.ai/api/v1`) |
+| `VT_BASE_URL` | Địa chỉ API theo chuẩn OpenAI, VD `https://openrouter.ai/api/v1` |
 | `VT_API_KEY` | Khóa API |
-| `VT_MODEL_LLM` | Tên mô hình — dùng chung cho cả 3 AI, Gate F và đối chứng |
-| `VT_REASONING_EFFORT` | (tuỳ chọn) với mô hình có chế độ suy nghĩ: `none` = tắt, `low`/`high`/`max` |
+| `VT_MODEL_LLM` | Tên mô hình — dùng chung cho cả 3 AI, Gate F và các đối chứng |
+| `VT_REASONING_EFFORT` | Không bắt buộc. Với mô hình có chế độ "suy nghĩ": `none` = tắt, `low` / `high` / `max` = mức suy nghĩ |
 
-Kiểm thử (nếu dữ liệu BIRD ở chỗ khác, đặt `VASP_BIRD_CONFIG` trỏ tới file cấu hình đúng):
+File `.env` chứa khóa bí mật, đã được loại khỏi git.
+
+### Bước 4 — Kiểm tra code chạy đúng
 
 ```powershell
 py -m pytest -q
 ```
 
-Chạy thí nghiệm (mọi script có `--resume` và `--max-seconds` để chạy từng đoạn, dừng giữa chừng không mất kết quả):
+Nếu dữ liệu BIRD không nằm đúng chỗ ghi trong `configs/bird_config.yaml`, đặt biến `VASP_BIRD_CONFIG`
+trỏ tới file cấu hình của máy mình; bài test cần dữ liệu sẽ tự bỏ qua nếu không tìm thấy dữ liệu.
+
+### Bước 5 — Thí nghiệm không cần LLM
+
+Kiểm tra lớp sửa lỗi trên SQL đúng và trên SQL bị làm hỏng có chủ đích. Không tốn tiền, không cần `.env`.
 
 ```powershell
-# không cần LLM
-py scripts/eval_gold.py --split report --out <thư mục kết quả gold>
-py scripts/eval_corrupted.py --split report --seed 2027 --gold-results <thư mục kết quả gold>/per_sample.jsonl --out <thư mục kết quả>
-py scripts/eval_corrupted.py ... --ast-only --out <thư mục kết quả AST-only>
+# 5a. Chạy trên SQL đúng của BIRD -> lớp sửa lỗi phải giữ nguyên, không sửa nhầm
+py scripts/eval_gold.py --split report
 
-# 3 AI sinh SQL (cần LLM)
-py scripts/run_generator.py --gen g1 --split report --workers 8 --resume
+# 5b. Làm hỏng SQL đúng (sai tên cột, sai tên bảng, mất điều kiện JOIN) rồi xem sửa lại được bao nhiêu
+#     (dùng kết quả của bước 5a để chỉ lấy những câu lớp sửa lỗi đã giữ nguyên)
+py scripts/eval_corrupted.py --split report --seed 2027
 
-# các cấu hình theo mục 5.6 (với từng AI)
-py scripts/eval_generated.py --gen g1 --split report                    # VASP-SQL không LLM (A–E)
-py scripts/eval_generated.py --gen g1 --split report --llm              # VASP-SQL đầy đủ (A–F)
-py scripts/eval_generated.py --gen g1 --split report --ast-only         # AST-only
-py scripts/eval_generated.py --gen g1 --split report --no-value-repair  # ablation
-py scripts/eval_generated.py --gen g1 --split report --no-schema-graph  # ablation
-py scripts/eval_baselines.py --gen g1 --split report --mode rewrite
-py scripts/eval_baselines.py --gen g1 --split report --mode execfb
-
-# thống kê cuối
-py scripts/stats_report.py --split report --price-in 0.09 --price-out 0.55
+# 5c. Như 5b nhưng tắt đồ thị schema (cấu hình đối chứng AST-only), lưu sang thư mục khác để so sánh
+py scripts/eval_corrupted.py --split report --seed 2027 --ast-only --out <thư mục khác>
 ```
+
+### Bước 6 — Cho 3 AI sinh SQL (cần LLM)
+
+```powershell
+py scripts/run_generator.py --gen g1 --split report
+py scripts/run_generator.py --gen g2 --split report
+py scripts/run_generator.py --gen g3 --split report
+```
+
+- `g1` = một lần gọi LLM, `g2` = MAC-SQL, `g3` = agent LangChain.
+- `--split report` = 1234 câu dùng để báo cáo; `--split tune` = 300 câu dùng để chỉnh phương pháp.
+- Thêm `--workers 8` để gửi nhiều câu cùng lúc cho nhanh (nếu server cho phép).
+
+### Bước 7 — Chạy lớp sửa lỗi và các phương pháp so sánh
+
+Chạy lần lượt cho từng AI — thay `g1` bằng `g2`, `g3`:
+
+```powershell
+# Phương pháp đề xuất
+py scripts/eval_generated.py --gen g1 --split report                    # VASP-SQL không dùng LLM (Gate A–E)
+py scripts/eval_generated.py --gen g1 --split report --llm              # VASP-SQL đầy đủ (thêm Gate F bằng LLM)
+
+# Đối chứng (mục 5.6 của kế hoạch)
+py scripts/eval_generated.py --gen g1 --split report --ast-only         # AST-only: không đồ thị schema, không sửa giá trị
+py scripts/eval_baselines.py --gen g1 --split report --mode rewrite     # LLM viết lại cả câu
+py scripts/eval_baselines.py --gen g1 --split report --mode execfb      # LLM viết lại khi được xem kết quả chạy
+
+# Ablation: tắt từng phần để xem phần đó đóng góp bao nhiêu
+py scripts/eval_generated.py --gen g1 --split report --no-value-repair  # tắt sửa giá trị lọc
+py scripts/eval_generated.py --gen g1 --split report --no-schema-graph  # tắt đồ thị schema
+```
+
+### Bước 8 — Tổng hợp thống kê
+
+```powershell
+py scripts/stats_report.py --split report
+```
+
+Gom kết quả của mọi cấu hình thành một bảng: EX, khoảng tin cậy 95%, kiểm định McNemar, kết quả theo độ khó,
+database và loại lỗi, số nút AST thay đổi, chi phí và độ trễ. Muốn ước tính chi phí theo USD thì thêm giá token
+của mô hình đang dùng: `--price-in <giá 1 triệu token vào> --price-out <giá 1 triệu token ra>`.
+
+### Mẹo khi chạy lâu
+
+- Các script ở bước 5–7 đều có `--resume`: bị ngắt giữa chừng thì chạy lại cùng lệnh kèm `--resume` để làm tiếp, không mất phần đã xong.
+- `--max-seconds N`: tự dừng sau N giây (dùng cùng `--resume` để chạy từng đoạn).
+- Câu trả lời của LLM được lưu đệm: chạy lại cùng câu không tốn thêm lượt gọi.
 
 ## Quy tắc thực nghiệm
 
