@@ -1,5 +1,5 @@
 """
-Unit tests for Phase 1: Core Models & Safe Execution Sandbox.
+Unit test cho Giai đoạn 1: mô hình dữ liệu lõi và sandbox chạy SQL an toàn.
 """
 
 import os
@@ -17,7 +17,7 @@ from vasp_sql.sandbox.executor import SQLiteSandboxExecutor
 
 @pytest.fixture
 def sample_sqlite_db():
-    """Create a temporary SQLite database with realistic schema and data."""
+    """Tạo database SQLite tạm với schema và dữ liệu giống thật."""
     fd, path = tempfile.mkstemp(suffix=".sqlite")
     os.close(fd)
 
@@ -62,7 +62,7 @@ def sample_sqlite_db():
 
 
 def test_core_models_instantiation():
-    """Test creating core data models."""
+    """Kiểm tra tạo các mô hình dữ liệu lõi."""
     col = ColumnMetadata(name="age", data_type="INTEGER", is_primary_key=False)
     table = TableMetadata(name="users")
     table.add_column(col)
@@ -71,11 +71,11 @@ def test_core_models_instantiation():
     schema.add_table(table)
 
     assert schema.has_table("users")
-    assert schema.has_table("USERS")  # case insensitive
+    assert schema.has_table("USERS")  # không phân biệt hoa thường
     assert schema.get_column("users", "age") is not None
     assert schema.find_tables_with_column("age") == ["users"]
 
-    # Test RepairResult
+    # Kiểm tra RepairResult
     res = RepairResult(
         status=RepairStatus.REPAIRED,
         final_sql="SELECT name FROM users;",
@@ -95,7 +95,7 @@ def test_core_models_instantiation():
 
 
 def test_schema_introspection_from_sqlite(sample_sqlite_db):
-    """Test extracting SchemaMetadata automatically from SQLite PRAGMA."""
+    """Kiểm tra tự đọc SchemaMetadata từ SQLite bằng PRAGMA."""
     schema = SchemaMetadata.from_sqlite_db(sample_sqlite_db, db_id="company")
 
     assert schema.has_table("departments")
@@ -110,7 +110,7 @@ def test_schema_introspection_from_sqlite(sample_sqlite_db):
     assert emp_table is not None
     assert emp_table.get_column("salary").data_type == "REAL"
 
-    # Check foreign keys
+    # Kiểm tra khóa ngoại
     assert len(schema.foreign_keys) == 1
     fk = schema.foreign_keys[0]
     assert fk.from_table.lower() == "employees"
@@ -120,7 +120,7 @@ def test_schema_introspection_from_sqlite(sample_sqlite_db):
 
 
 def test_sandbox_safe_select(sample_sqlite_db):
-    """Test executing a valid SELECT query in the sandbox."""
+    """Kiểm tra chạy một câu SELECT hợp lệ trong sandbox."""
     executor = SQLiteSandboxExecutor(sample_sqlite_db)
     feedback = executor.execute("SELECT name, salary FROM employees WHERE dept_id = 1 ORDER BY salary DESC;")
 
@@ -131,7 +131,7 @@ def test_sandbox_safe_select(sample_sqlite_db):
 
 
 def test_sandbox_blocks_ddl_and_dml(sample_sqlite_db):
-    """Test that Gate D strictly rejects dangerous queries without executing them."""
+    """Kiểm tra Gate D chặn hẳn các câu nguy hiểm mà không chạy chúng."""
     executor = SQLiteSandboxExecutor(sample_sqlite_db)
 
     # 1. DROP TABLE
@@ -156,27 +156,27 @@ def test_sandbox_blocks_ddl_and_dml(sample_sqlite_db):
 
 
 def test_sandbox_runtime_error_reporting(sample_sqlite_db):
-    """Test sandbox error categorization for invalid queries."""
+    """Kiểm tra sandbox phân loại đúng lỗi của câu không hợp lệ."""
     executor = SQLiteSandboxExecutor(sample_sqlite_db)
 
-    # Non-existent column
+    # Cột không tồn tại
     res_col = executor.execute("SELECT nonexistent_column FROM employees;")
     assert not res_col.is_success
     assert res_col.error_type == "no_such_column"
 
-    # Non-existent table
+    # Bảng không tồn tại
     res_tbl = executor.execute("SELECT * FROM non_existent_table;")
     assert not res_tbl.is_success
     assert res_tbl.error_type == "no_such_table"
 
 
 def test_sandbox_timeout(sample_sqlite_db):
-    """Test that long-running queries are interrupted by the timeout watchdog."""
-    # Set timeout to 0.2 seconds and execute recursive CTE that runs endlessly
+    """Kiểm tra câu chạy quá lâu bị bộ hẹn giờ ngắt."""
+    # Đặt timeout 0,2 giây rồi chạy một CTE đệ quy chạy mãi không dừng
     policy = ExecutionSafetyPolicy(timeout_seconds=0.2)
     executor = SQLiteSandboxExecutor(sample_sqlite_db, policy=policy)
 
-    # Recursive CTE generating infinite numbers
+    # CTE đệ quy sinh số vô hạn
     infinite_query = """
     WITH RECURSIVE inf(n) AS (
         SELECT 1

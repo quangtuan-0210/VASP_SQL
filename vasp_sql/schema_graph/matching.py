@@ -1,14 +1,14 @@
 """
-Name matching for misspelled tables / columns.
+So khớp tên cho bảng / cột bị gõ sai.
 
-Ranking uses two signals:
-  1. edit distance with adjacent swaps (Damerau / OSA): "ABL" -> "ALB" costs 1 (one swap),
-     while "ABL" -> "ALP" costs 2. Plain similarity ratios treat these two as equal.
-  2. SequenceMatcher similarity as a tie-breaker and as a fallback for longer names.
+Xếp hạng dựa trên hai tín hiệu:
+  1. khoảng cách sửa có tính cả đảo hai chữ cái liền nhau (Damerau / OSA): "ABL" -> "ALB" tốn 1
+     (một lần đảo), còn "ABL" -> "ALP" tốn 2. Tỉ lệ giống thông thường coi hai trường hợp này như nhau.
+  2. độ giống SequenceMatcher để phân xử khi bằng nhau và làm phương án dự phòng cho tên dài.
 
-The best candidate is accepted only if it is *clearly* better than the runner-up;
-otherwise the match is reported as ambiguous so the repair layer can abstain instead of guessing
-(e.g. "A1" is one edit away from both "A10" and "A11").
+Ứng viên tốt nhất chỉ được chấp nhận khi *rõ ràng* tốt hơn ứng viên thứ hai;
+nếu không thì báo là mơ hồ để lớp sửa lỗi từ chối thay vì đoán
+(VD "A1" cách cả "A10" lẫn "A11" đúng một lần sửa).
 """
 
 from difflib import SequenceMatcher
@@ -22,7 +22,7 @@ def normalize(name: str) -> str:
 
 
 def osa_distance(a: str, b: str) -> int:
-    """Optimal string alignment distance (insert / delete / substitute / swap adjacent)."""
+    """Khoảng cách OSA (thêm / xoá / thay / đảo hai ký tự liền nhau)."""
     la, lb = len(a), len(b)
     d = [[0] * (lb + 1) for _ in range(la + 1)]
     for i in range(la + 1):
@@ -49,7 +49,7 @@ class Match:
 
 
 def rank(query: str, items: Iterable[Tuple[T, str]]) -> List[Match]:
-    """Rank (item, name) pairs by closeness to query: smaller distance first, then higher similarity."""
+    """Xếp hạng các cặp (item, tên) theo độ gần với chuỗi cần tìm: khoảng cách nhỏ trước, rồi độ giống cao."""
     q = normalize(query)
     out = []
     for item, name in items:
@@ -64,14 +64,14 @@ def max_edits(query: str) -> int:
 
 
 def acceptable(m: Match, query: str) -> bool:
-    """A plausible typo (at most ~2 edits, scaled for long names) or a clearly similar name."""
+    """Một lỗi gõ hợp lý (tối đa ~2 lần sửa, tăng theo độ dài tên) hoặc một tên giống rõ rệt."""
     return m.distance <= max_edits(query) or m.similarity >= 0.6
 
 
 def pick(query: str, items: Iterable[Tuple[T, str]], sim_margin: float = 0.05) -> Tuple[Optional[Match], bool, List[Match]]:
     """
-    Returns (best_match_or_None, is_ambiguous, ranked_list).
-    is_ambiguous=True when the runner-up is just as close (same distance and similarity within margin).
+    Trả về (khớp_tốt_nhất_hoặc_None, có_mơ_hồ_không, danh_sách_xếp_hạng).
+    is_ambiguous=True khi ứng viên thứ hai gần y như vậy (cùng khoảng cách và độ giống chênh dưới ngưỡng).
     """
     all_ranked = rank(query, items)
     ranked = [m for m in all_ranked if acceptable(m, query)]
@@ -81,11 +81,11 @@ def pick(query: str, items: Iterable[Tuple[T, str]], sim_margin: float = 0.05) -
     second = all_ranked[1] if len(all_ranked) > 1 else None
     if second is not None:
         if best.distance <= max_edits(query):
-            # typo-like match: ambiguous only if the runner-up is an equally short edit away
+            # khớp kiểu gõ sai: chỉ mơ hồ khi ứng viên thứ hai cũng cách đúng bấy nhiêu lần sửa
             if second.distance == best.distance and best.similarity - second.similarity < sim_margin:
                 return None, True, ranked
         else:
-            # looser, similarity-based match: demand a clear similarity gap to the runner-up
+            # khớp lỏng hơn theo độ giống: đòi hỏi cách biệt rõ với ứng viên thứ hai
             by_sim = sorted(all_ranked, key=lambda m: -m.similarity)
             if by_sim[0] is not best or best.similarity - by_sim[1].similarity < 0.1:
                 return None, True, ranked

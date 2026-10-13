@@ -1,5 +1,5 @@
 """
-Verification Gates (Gate A through Gate F) for VASP-SQL.
+Các cổng kiểm chứng (Gate A tới Gate F) của VASP-SQL.
 """
 
 from typing import Optional, Tuple
@@ -16,8 +16,8 @@ from vasp_sql.sandbox.executor import SQLiteSandboxExecutor
 
 class VerificationPipeline:
     """
-    Executes Gates A through F in sequence.
-    An applicant query is rejected if any mandatory gate fails.
+    Chạy lần lượt Gate A tới F.
+    Câu ứng viên bị loại nếu trượt bất kỳ cổng bắt buộc nào.
     """
 
     def __init__(
@@ -30,7 +30,7 @@ class VerificationPipeline:
 
     def verify_gate_a_syntax(self, sql: str, dialect: str = "sqlite") -> GateResult:
         """
-        Gate A: Parse and dialect syntax validity.
+        Gate A: phân tích được và đúng cú pháp của dialect.
         """
         feedback = self.parser.validate_syntax(sql, dialect=dialect)
         if feedback.is_valid_syntax:
@@ -54,11 +54,11 @@ class VerificationPipeline:
         dialect: str = "sqlite"
     ) -> GateResult:
         """
-        Gate B: Schema existence and scope binding for all tables and columns.
+        Gate B: mọi bảng và cột tồn tại trong schema và gắn đúng scope.
         """
         scope = self.scope_analyzer.analyze(ast, schema=schema, dialect=dialect)
 
-        # Check tables
+        # Kiểm tra bảng
         for tbl_name, tbl_binding in scope.tables.items():
             if not tbl_binding.is_cte and not tbl_binding.is_subquery:
                 if not schema.has_table(tbl_binding.table_name):
@@ -69,7 +69,7 @@ class VerificationPipeline:
                         message=f"Table '{tbl_binding.table_name}' does not exist in schema."
                     )
 
-        # Check columns (skip names the query defines itself: SELECT aliases, CTE / derived-table outputs)
+        # Kiểm tra cột (bỏ qua tên do câu truy vấn tự đặt: tên tắt của SELECT, đầu ra của CTE / bảng con)
         own_names = defined_names(ast)
         for col_binding in scope.column_bindings:
             if col_binding.column_name == "*":
@@ -93,10 +93,10 @@ class VerificationPipeline:
                     message=f"Column '{col_binding.column_name}' does not exist in table '{col_binding.resolved_table}'."
                 )
 
-        # Check join completeness per SELECT (prevent accidental Cartesian products).
-        # Each SELECT is checked on its own, so tables inside IN/= subqueries are not
-        # mixed with the outer query, and only predicates that actually link two FROM
-        # items of that SELECT count as joins.
+        # Kiểm tra đủ điều kiện nối theo từng SELECT (tránh vô tình tạo tích Descartes).
+        # Mỗi SELECT được kiểm riêng, nên bảng trong truy vấn con IN/= không bị
+        # gộp với truy vấn ngoài, và chỉ những điều kiện thật sự nối hai mục FROM
+        # của SELECT đó mới được tính là phép nối.
         disconnected = find_disconnected_selects(ast, schema)
         if disconnected:
             _, comps = disconnected[0]
@@ -117,9 +117,9 @@ class VerificationPipeline:
 
     def verify_gate_c_type(self, ast: exp.Expression, schema: SchemaMetadata) -> GateResult:
         """
-        Gate C: Type compatibility for aggregations and operators.
+        Gate C: tương thích kiểu cho phép tổng hợp và toán tử.
         """
-        # Basic type sanity check: SUM/AVG should ideally not target non-numeric types if known
+        # Kiểm tra kiểu cơ bản: SUM/AVG không nên áp lên cột không phải số (nếu biết kiểu)
         for func in ast.find_all(exp.Anonymous, exp.Sum, exp.Avg):
             func_name = func.key.upper()
             if func_name in ("SUM", "AVG"):
@@ -142,7 +142,7 @@ class VerificationPipeline:
 
     def verify_gate_d_safety(self, sql: str, sandbox: SQLiteSandboxExecutor) -> GateResult:
         """
-        Gate D: Read-only sandbox safety inspection.
+        Gate D: kiểm tra an toàn kiểu chỉ đọc của sandbox.
         """
         is_safe, err_msg = sandbox.check_safety_ast(sql)
         return GateResult(
@@ -158,7 +158,7 @@ class VerificationPipeline:
         sandbox: SQLiteSandboxExecutor
     ) -> Tuple[GateResult, ExecutionFeedback]:
         """
-        Gate E: Actual sandbox execution and fingerprint generation.
+        Gate E: chạy thật trong sandbox và tạo mã băm kết quả.
         """
         feedback = sandbox.execute(sql)
         if feedback.is_success:
@@ -190,7 +190,7 @@ class VerificationPipeline:
         evidence: Optional[str] = None
     ) -> GateResult:
         """
-        Gate F: Intent sanity check ensuring query is not an empty or disconnected shell.
+        Gate F: kiểm tra đơn giản rằng câu truy vấn không rỗng hoặc rời rạc.
         """
         sql_lower = sql.lower()
         if not sql_lower.strip().startswith("select") and not sql_lower.strip().startswith("with"):

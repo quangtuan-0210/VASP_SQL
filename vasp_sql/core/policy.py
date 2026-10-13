@@ -1,5 +1,5 @@
 """
-Repair Policy definition for VASP-SQL.
+Định nghĩa chính sách sửa lỗi của VASP-SQL.
 """
 
 from typing import List
@@ -11,7 +11,7 @@ from vasp_sql.core.result import GateType
 
 class RepairPolicy(BaseModel):
     """
-    Policy governing the repair process, confidence thresholds, and active gates.
+    Chính sách điều khiển việc sửa lỗi: ngưỡng tin cậy và các cổng kiểm tra được bật.
     """
     min_confidence_threshold: float = Field(
         default=0.75,
@@ -34,6 +34,21 @@ class RepairPolicy(BaseModel):
     allow_llm_patches: bool = Field(
         default=False,
         description="Enable LLM to generate localized patch proposals."
+    )
+    allow_value_repair: bool = Field(
+        default=True,
+        description="Khi câu hợp lệ nhưng ra rỗng: thử thay giá trị lọc bằng giá trị thật gần nhất trong database."
+    )
+    allow_semantic_repair: bool = Field(
+        default=False,
+        description="Hướng 2 (cần llm): với câu đã qua Gate A–E, LLM đề xuất tối đa 2 thao tác sửa cục bộ, "
+                    "hệ thống áp lên AST, kiểm lại A–E, rồi một lượt LLM độc lập chọn giữa câu gốc và câu sửa."
+    )
+    use_schema_graph: bool = Field(
+        default=True,
+        description="Dùng đồ thị schema (khóa ngoại) để tìm cách nối bảng khi thiếu JOIN. "
+                    "Tắt (cùng allow_value_repair=False và không truyền llm) = cấu hình đối chứng AST-only "
+                    "của mục 5.6: chỉ còn quy tắc trên AST + so tên với danh mục bảng/cột."
     )
     use_llm_intent: bool = Field(
         default=True,

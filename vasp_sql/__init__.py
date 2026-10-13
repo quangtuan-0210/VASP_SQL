@@ -1,6 +1,6 @@
 """
 VASP-SQL: Verified AST-localized SQL Repair
-A post-processing repair layer for SQL-generating agents.
+Lớp hậu xử lý sửa lỗi SQL do các AI agent sinh ra.
 """
 
 __version__ = "0.1.0"

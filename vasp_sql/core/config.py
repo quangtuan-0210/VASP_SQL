@@ -1,5 +1,5 @@
 """
-Configuration and safety policies for VASP-SQL.
+Cấu hình và chính sách an toàn cho VASP-SQL.
 """
 
 from typing import Optional
@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 class ExecutionSafetyPolicy(BaseModel):
     """
-    Safety policy enforced by Gate D before executing any query in the sandbox.
+    Chính sách an toàn mà Gate D áp dụng trước khi chạy bất kỳ câu nào trong sandbox.
     """
     read_only: bool = Field(
         default=True,
@@ -34,7 +34,7 @@ class ExecutionSafetyPolicy(BaseModel):
 
 class RepairBudget(BaseModel):
     """
-    Resource budget for repair candidate exploration to ensure fair comparison.
+    Ngân sách tài nguyên khi tìm ứng viên sửa, để so sánh công bằng.
     """
     max_candidates: int = Field(
         default=5,
@@ -56,7 +56,7 @@ class RepairBudget(BaseModel):
 
 class BenchmarkConfig(BaseModel):
     """
-    Benchmark configuration for evaluation runs (e.g. BIRD on SQLite).
+    Cấu hình benchmark cho các lần đánh giá (VD BIRD trên SQLite).
     """
     benchmark_name: str = Field(default="BIRD", description="Name of benchmark suite.")
     dialect: str = Field(default="sqlite", description="Target SQL dialect.")

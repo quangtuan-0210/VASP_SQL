@@ -1,5 +1,5 @@
 """
-Adapter for G1 - Single-Agent Baseline (One-shot / Zero-shot LLM prompts).
+Adapter cho G1 - baseline single-agent (prompt LLM một lượt, one-shot / zero-shot).
 """
 
 from typing import Any, Dict, Optional
@@ -12,7 +12,7 @@ from vasp_sql.core.feedback import ExecutionFeedback
 
 class SingleAgentAdapter(BaseGeneratorAdapter):
     """
-    Adapter for baseline single-agent LLMs producing raw SQL or markdown text.
+    Adapter cho LLM single-agent baseline trả về SQL thô hoặc văn bản markdown.
     """
 
     def __init__(self, generator_name: str = "baseline_single_agent"):
@@ -26,7 +26,7 @@ class SingleAgentAdapter(BaseGeneratorAdapter):
         metadata: Optional[Dict[str, Any]] = None
     ) -> GeneratorOutput:
         try:
-            # Handle if raw_output is dict
+            # Xử lý khi raw_output là dict
             if isinstance(raw_output, dict):
                 text_content = (
                     raw_output.get("sql")

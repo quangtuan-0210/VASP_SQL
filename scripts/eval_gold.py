@@ -1,14 +1,14 @@
 """
-Step 1 — Regression check on BIRD gold SQL.
+Bước 1 — Kiểm tra làm hỏng câu đúng (regression) trên gold SQL của BIRD.
 
-Gold SQL is assumed correct, so the ideal outcome for every sample is UNCHANGED.
-  * REPAIRED  -> the layer modified a correct query (check whether the result still matches gold)
-  * ABSTAIN   -> a gate / diagnosis falsely flagged a correct query (no harm to EX, but a false alarm)
+Gold SQL được coi là đúng, nên kết quả lý tưởng cho mọi mẫu là UNCHANGED.
+  * REPAIRED  -> lớp sửa lỗi đã sửa một câu đúng (kiểm tra kết quả còn khớp gold không)
+  * ABSTAIN   -> một cổng / bước chẩn đoán báo nhầm câu đúng (không hại EX, nhưng là báo nhầm)
 
-Usage (from project root):
-    py scripts/eval_gold.py                       # all samples whose DB exists locally
+Cách chạy (từ thư mục gốc project):
+    py scripts/eval_gold.py                       # mọi mẫu có database trên máy
     py scripts/eval_gold.py --limit 200 --db california_schools
-Outputs: results/gold_eval/{per_sample.jsonl, summary.json, summary.md}
+Đầu ra: results/gold_eval/{per_sample.jsonl, summary.json, summary.md}
 """
 
 import argparse
@@ -28,6 +28,8 @@ def main():
     ap.add_argument("--config", default="configs/bird_config.yaml")
     ap.add_argument("--db", nargs="*", default=None, help="restrict to these db_ids")
     ap.add_argument("--limit", type=int, default=None)
+    ap.add_argument("--split", default=None, choices=["tune", "report"],
+                    help="chỉ dùng câu thuộc phần này của configs/splits/bird_dev_split.json")
     ap.add_argument("--out", default="results/gold_eval")
     ap.add_argument("--llm", action="store_true",
                     help="bật Gate F bằng LLM (đọc cấu hình server từ .env); câu trả lời được lưu đệm ở results/llm_cache.jsonl")
@@ -42,6 +44,9 @@ def main():
         llm = LLMClient()
         print(f"Gate F dùng LLM: {llm.model} @ {llm.base_url}")
     samples = available_samples(loader, args.db)
+    if args.split:
+        keep = set(json.load(open("configs/splits/bird_dev_split.json", encoding="utf-8"))[args.split])
+        samples = [s for s in samples if s.question_id in keep]
     if args.limit:
         samples = samples[: args.limit]
     os.makedirs(args.out, exist_ok=True)
@@ -53,7 +58,7 @@ def main():
     if args.resume and os.path.exists(out_path):
         records = load_jsonl(out_path)
         done_ids = {r["question_id"] for r in records}
-        # rewrite cleanly (drops a half-written last line from an interrupted run)
+        # ghi lại file cho sạch (bỏ dòng cuối ghi dở do lần chạy trước bị ngắt)
         with open(out_path, "w", encoding="utf-8") as f:
             for r in records:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
@@ -116,7 +121,7 @@ def load_jsonl(path):
             try:
                 out.append(json.loads(line))
             except json.JSONDecodeError:
-                pass  # half-written line from an interrupted run
+                pass  # dòng ghi dở do lần chạy trước bị ngắt
     return out
 
 
@@ -127,7 +132,7 @@ def summarize(records, out_dir, elapsed):
     regressions = [r for r in valid if r["status"] == "REPAIRED" and not r.get("ex_after")]
     gates = Counter(r.get("first_failing_gate") or "none" for r in valid if r["status"] != "UNCHANGED")
 
-    # group the false-alarm messages into coarse buckets
+    # gom các thông báo báo nhầm thành vài nhóm lớn
     def bucket(msg):
         if not msg:
             return "(no gate failed — diagnosis/planner)"

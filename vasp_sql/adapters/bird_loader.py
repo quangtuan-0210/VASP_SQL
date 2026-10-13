@@ -1,5 +1,5 @@
 """
-Loader for BIRD benchmark datasets and associated SQLite databases.
+Bộ nạp dữ liệu benchmark BIRD và các database SQLite đi kèm.
 """
 
 import json
@@ -13,7 +13,7 @@ from vasp_sql.core.schema import SchemaMetadata
 
 class BirdDatasetLoader:
     """
-    Manages loading and querying samples from BIRD benchmark datasets.
+    Quản lý việc nạp và truy vấn các mẫu của benchmark BIRD.
     """
 
     def __init__(self, config_path: str = "configs/bird_config.yaml"):
@@ -44,7 +44,7 @@ class BirdDatasetLoader:
 
         self.samples = []
         for idx, item in enumerate(raw_data):
-            # BIRD JSON structure:
+            # Cấu trúc JSON của BIRD:
             # question_id, db_id, question, evidence, SQL, difficulty
             sample = EvaluationSample(
                 question_id=item.get("question_id", idx),
@@ -75,7 +75,7 @@ class BirdDatasetLoader:
         limit: Optional[int] = None
     ) -> List[EvaluationSample]:
         """
-        Filter samples by database or difficulty level.
+        Lọc mẫu theo database hoặc độ khó.
         """
         res = self.samples
         if db_id:
@@ -88,11 +88,11 @@ class BirdDatasetLoader:
 
     def get_db_path(self, db_id: str) -> str:
         """
-        Resolve absolute path to the .sqlite database file for a given db_id.
+        Lấy đường dẫn tuyệt đối tới file .sqlite của một db_id.
         """
         db_file = os.path.join(self.databases_dir, db_id, f"{db_id}.sqlite")
         if not os.path.exists(db_file):
-            # Check alternative naming if any
+            # Thử tên file khác nếu có
             alt_file = os.path.join(self.databases_dir, db_id, f"{db_id}.db")
             if os.path.exists(alt_file):
                 return alt_file
@@ -100,7 +100,7 @@ class BirdDatasetLoader:
 
     def get_schema(self, db_id: str) -> SchemaMetadata:
         """
-        Retrieve cached or freshly introspected SchemaMetadata for the given db_id.
+        Lấy SchemaMetadata của db_id từ bộ nhớ đệm, hoặc đọc mới từ database.
         """
         db_id_key = db_id.lower()
         if db_id_key in self._schema_cache:

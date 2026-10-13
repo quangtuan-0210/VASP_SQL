@@ -1,5 +1,5 @@
 """
-Unit tests for Phase 3.4: abstain on ambiguity, better name matching, table-typo repair.
+Unit test cho Giai đoạn 3.4: từ chối khi mơ hồ, so tên tốt hơn, sửa tên bảng gõ sai.
 """
 
 import os
@@ -42,7 +42,7 @@ def db():
 
 def test_ambiguous_fk_join_abstains_when_options_disagree(db):
     path, schema = db
-    # superhero -> colour via eye_colour_id OR hair_colour_id: the two joins return different rows
+    # superhero -> colour qua eye_colour_id HOẶC hair_colour_id: hai cách nối cho kết quả khác nhau
     sql = "SELECT T1.superhero_name FROM superhero AS T1 CROSS JOIN colour AS T2 WHERE T2.colour = 'Blond'"
     res = repair("Heroes with blond hair?", sql, schema, path)
     assert res.status == RepairStatus.ABSTAIN
@@ -50,7 +50,7 @@ def test_ambiguous_fk_join_abstains_when_options_disagree(db):
 
 
 def test_ambiguous_fk_join_repaired_when_options_agree():
-    """Two FKs that identify the same entity (like player_api_id / player_fifa_api_id) give the same rows."""
+    """Hai khóa ngoại cùng chỉ một đối tượng (như player_api_id / player_fifa_api_id) cho cùng kết quả."""
     fd, path = tempfile.mkstemp(suffix=".sqlite")
     os.close(fd)
     conn = sqlite3.connect(path)
@@ -74,14 +74,14 @@ def test_ambiguous_fk_join_repaired_when_options_agree():
 
 def test_swapped_letters_pick_the_right_column(db):
     path, schema = db
-    res = repair("q", "SELECT ABL FROM district", schema, path)  # ALB with two letters swapped
+    res = repair("q", "SELECT ABL FROM district", schema, path)  # ALB bị đảo hai chữ cái
     assert res.status == RepairStatus.REPAIRED
     assert "ALB" in res.final_sql and "ALP" not in res.final_sql
 
 
 def test_equally_close_columns_abstain(db):
     path, schema = db
-    res = repair("q", "SELECT A1 FROM district", schema, path)  # A10 or A11?
+    res = repair("q", "SELECT A1 FROM district", schema, path)  # A10 hay A11?
     assert res.status == RepairStatus.ABSTAIN
 
 

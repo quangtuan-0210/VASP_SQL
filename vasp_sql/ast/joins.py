@@ -1,20 +1,19 @@
 """
-Per-SELECT join analysis and alias helpers.
+Phân tích phép nối theo từng SELECT và các hàm xử lý tên tắt.
 
-Why this module exists
-----------------------
-The old join-completeness check counted every table in the whole query as one
-scope, and treated *any* equality between two qualified columns as a join.
-That produced two kinds of mistakes on BIRD:
-  * false alarms: tables inside an IN / = subquery were counted together with the
-    outer table ("unjoined"), although each SELECT is self-contained;
-  * misses: in a 3-table query with one ON clause removed, the remaining ON
-    clauses still contained an equality, so the broken query passed.
+Vì sao có module này
+--------------------
+Cách kiểm tra nối bảng cũ coi mọi bảng trong cả câu truy vấn là một scope, và coi
+*bất kỳ* phép bằng nào giữa hai cột có tiền tố là một phép nối.
+Điều đó gây hai loại sai trên BIRD:
+  * báo nhầm: bảng trong truy vấn con IN / = bị tính chung với bảng ở ngoài
+    ("chưa nối"), dù mỗi SELECT là độc lập;
+  * bỏ sót: trong câu 3 bảng bị bỏ một mệnh đề ON, các mệnh đề ON còn lại vẫn
+    có phép bằng, nên câu hỏng vẫn lọt qua.
 
-Here every SELECT is analysed on its own: the FROM items of that SELECT are the
-nodes of a small graph, every comparison in its ON / WHERE clauses that links two
-FROM items is an edge, and the SELECT is "disconnected" when the physical tables
-fall into more than one connected component.
+Ở đây mỗi SELECT được phân tích riêng: các mục FROM của SELECT đó là các nút của
+một đồ thị nhỏ, mỗi phép so sánh trong ON / WHERE nối hai mục FROM là một cạnh, và
+SELECT bị coi là "tách rời" khi các bảng thật rơi vào nhiều hơn một thành phần liên thông.
 """
 
 from typing import Dict, List, Optional, Tuple
@@ -27,12 +26,12 @@ _COMPARISONS = (exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE)
 
 
 def get_from(select: exp.Select) -> Optional[exp.From]:
-    # sqlglot >= 26 stores FROM under "from_", older versions under "from"
+    # sqlglot >= 26 lưu FROM dưới khoá "from_", bản cũ hơn dùng "from"
     return select.args.get("from_") or select.args.get("from")
 
 
 def from_items(select: exp.Select) -> List[exp.Expression]:
-    """FROM items that belong directly to this SELECT (tables, derived tables), in order."""
+    """Các mục FROM thuộc trực tiếp SELECT này (bảng, bảng con), theo thứ tự."""
     items: List[exp.Expression] = []
     frm = get_from(select)
     if frm is not None:
@@ -46,12 +45,12 @@ def from_items(select: exp.Select) -> List[exp.Expression]:
 
 
 def item_key(item: exp.Expression) -> str:
-    """The name a FROM item is referenced by (alias if present, else table name)."""
+    """Tên dùng để gọi một mục FROM (tên tắt nếu có, không thì tên bảng)."""
     return (item.alias_or_name or "").lower()
 
 
 def alias_to_table(select: exp.Select) -> Dict[str, str]:
-    """qualifier (alias or table name, lowercase) -> physical table name (lowercase) for this SELECT."""
+    """tiền tố (tên tắt hoặc tên bảng, chữ thường) -> tên bảng thật (chữ thường) trong SELECT này."""
     out: Dict[str, str] = {}
     for it in from_items(select):
         if isinstance(it, exp.Table) and it.name:
@@ -61,7 +60,7 @@ def alias_to_table(select: exp.Select) -> Dict[str, str]:
 
 
 def table_to_qualifier(select: exp.Select) -> Dict[str, str]:
-    """physical table name (lowercase) -> qualifier to use when referring to it in this SELECT."""
+    """tên bảng thật (chữ thường) -> tiền tố nên dùng khi nhắc tới nó trong SELECT này."""
     out: Dict[str, str] = {}
     for it in from_items(select):
         if isinstance(it, exp.Table) and it.name:
@@ -70,7 +69,7 @@ def table_to_qualifier(select: exp.Select) -> Dict[str, str]:
 
 
 def global_alias_map(ast: exp.Expression) -> Dict[str, str]:
-    """alias -> table across the whole query (used when the enclosing SELECT is unknown)."""
+    """tên tắt -> bảng trên toàn câu truy vấn (dùng khi không biết SELECT bao quanh)."""
     out: Dict[str, str] = {}
     for sel in ast.find_all(exp.Select):
         for k, v in alias_to_table(sel).items():
@@ -79,7 +78,7 @@ def global_alias_map(ast: exp.Expression) -> Dict[str, str]:
 
 
 def _walk_same_scope(node: exp.Expression):
-    """Walk a predicate without descending into nested SELECTs / subqueries."""
+    """Duyệt một điều kiện mà không đi vào các SELECT / truy vấn con lồng bên trong."""
     stack = [node]
     while stack:
         n = stack.pop()
@@ -109,9 +108,9 @@ class _UnionFind:
 def select_components(select: exp.Select, schema: SchemaMetadata,
                       resolve_physical: bool = True) -> List[List[Tuple[str, Optional[str]]]]:
     """
-    Connected components of the FROM items of one SELECT.
-    Each component is a list of (qualifier, physical_table_or_None).
-    With resolve_physical=False every table reference counts as physical (no schema lookup).
+    Các thành phần liên thông của các mục FROM trong một SELECT.
+    Mỗi thành phần là danh sách (tiền tố, bảng_thật_hoặc_None).
+    Với resolve_physical=False, mọi tham chiếu bảng đều được coi là bảng thật (không tra schema).
     """
     items = from_items(select)
     keys: List[str] = []
@@ -136,7 +135,7 @@ def select_components(select: exp.Select, schema: SchemaMetadata,
                 if q in phys:
                     found.add(q)
                 continue
-            # unqualified column: attribute it if exactly one physical FROM item has it
+            # cột không có tiền tố: gán cho bảng nếu đúng một bảng thật trong FROM có cột này
             owners = [k for k in keys if phys[k] and schema.get_column(phys[k], col.name)]
             if len(owners) == 1:
                 found.add(owners[0])
@@ -175,9 +174,9 @@ def select_components(select: exp.Select, schema: SchemaMetadata,
 
 def find_disconnected_selects(ast: exp.Expression, schema: SchemaMetadata):
     """
-    Returns a list of (select_index, components) for every SELECT whose physical tables
-    are split over 2+ components (i.e. an accidental Cartesian product).
-    select_index is the position of the SELECT in list(ast.find_all(exp.Select)).
+    Trả về danh sách (select_index, components) cho mọi SELECT có các bảng thật
+    bị chia thành từ 2 thành phần trở lên (tức là vô tình tạo tích Descartes).
+    select_index là vị trí của SELECT trong list(ast.find_all(exp.Select)).
     """
     out = []
     for idx, sel in enumerate(ast.find_all(exp.Select)):
@@ -190,11 +189,11 @@ def find_disconnected_selects(ast: exp.Expression, schema: SchemaMetadata):
 
 def defined_names(ast: exp.Expression) -> Tuple[set, set]:
     """
-    Names the query defines itself (not schema objects):
-      * output_names: column aliases (``COUNT(*) AS post_count``) and CTE column lists —
-        an unqualified reference to one of these is valid (ORDER BY / HAVING / outer query);
-      * source_names: aliases of derived tables and CTE names — columns qualified with
-        one of these refer to query outputs, not schema columns.
+    Các tên do chính câu truy vấn đặt ra (không phải đối tượng trong schema):
+      * output_names: tên tắt của cột (``COUNT(*) AS post_count``) và danh sách cột của CTE —
+        gọi tới các tên này mà không có tiền tố là hợp lệ (ORDER BY / HAVING / truy vấn ngoài);
+      * source_names: tên tắt của bảng con và tên CTE — cột có tiền tố là một trong các tên này
+        là đầu ra của truy vấn, không phải cột trong schema.
     """
     output_names, source_names = set(), set()
     for a in ast.find_all(exp.Alias):

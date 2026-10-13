@@ -1,9 +1,9 @@
 """
-Shared helpers for VASP-SQL evaluation scripts on BIRD.
+Các hàm dùng chung cho các script đánh giá VASP-SQL trên BIRD.
 
-- run_sql_full():   execute a query (read-only, with timeout) and return the full result set
-- ex_match():       BIRD-style Execution Accuracy check (set equality of result rows)
-- first_failing_gate(): run Gates A..F on a query and report the first gate that fails
+- run_sql_full():   chạy truy vấn (chỉ đọc, có giới hạn thời gian) và trả về toàn bộ kết quả
+- ex_match():       kiểm tra Execution Accuracy kiểu BIRD (so tập các dòng kết quả)
+- first_failing_gate(): chạy Gate A..F trên một câu và báo cổng đầu tiên bị trượt
 """
 
 import os
@@ -12,7 +12,7 @@ import sys
 import threading
 from typing import Any, List, Optional, Tuple
 
-# Allow "python scripts/xxx.py" from the project root
+# Cho phép chạy "python scripts/xxx.py" từ thư mục gốc project
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
@@ -25,7 +25,7 @@ from vasp_sql.verifiers.gates import VerificationPipeline  # noqa: E402
 
 
 def run_sql_full(db_path: str, sql: str, timeout_s: float = 30.0) -> Tuple[bool, Optional[List[Tuple[Any, ...]]], Optional[str]]:
-    """Execute SQL read-only and fetch ALL rows. Returns (ok, rows, error)."""
+    """Chạy SQL ở chế độ chỉ đọc và lấy TẤT CẢ các dòng. Trả về (ok, rows, error)."""
     abs_path = os.path.abspath(db_path).replace("\\", "/")
     conn = sqlite3.connect(f"file:{abs_path}?mode=ro", uri=True, check_same_thread=False)
     timed_out = [False]
@@ -52,7 +52,7 @@ def run_sql_full(db_path: str, sql: str, timeout_s: float = 30.0) -> Tuple[bool,
 
 
 def ex_match(db_path: str, pred_sql: str, gold_rows: Optional[List[Tuple[Any, ...]]], timeout_s: float = 30.0) -> bool:
-    """BIRD official EX criterion: set(pred_rows) == set(gold_rows)."""
+    """Tiêu chí EX chính thức của BIRD: set(pred_rows) == set(gold_rows)."""
     if gold_rows is None:
         return False
     ok, rows, _ = run_sql_full(db_path, pred_sql, timeout_s)
@@ -62,7 +62,7 @@ def ex_match(db_path: str, pred_sql: str, gold_rows: Optional[List[Tuple[Any, ..
 
 
 class GateProbe:
-    """Runs Gates A..F in the same order as pipeline.repair() and reports the first failure."""
+    """Chạy Gate A..F theo đúng thứ tự như pipeline.repair() và báo cổng đầu tiên bị trượt."""
 
     def __init__(self, dialect: str = "sqlite"):
         self.dialect = dialect
@@ -97,7 +97,7 @@ class GateProbe:
 
 
 def available_samples(loader, db_ids: Optional[List[str]] = None):
-    """Samples whose .sqlite file exists locally (optionally restricted to db_ids)."""
+    """Các mẫu có file .sqlite trên máy (có thể giới hạn theo danh sách db_ids)."""
     out = []
     for s in loader.samples:
         if db_ids and s.db_id not in db_ids:

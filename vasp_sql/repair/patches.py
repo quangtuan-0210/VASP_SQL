@@ -1,6 +1,6 @@
 """
-Localized AST Patches for VASP-SQL.
-Transforms specific nodes in the AST while preserving all other query structures.
+Các bản vá cục bộ trên AST của VASP-SQL.
+Chỉ đổi đúng những nút cần sửa trong AST, giữ nguyên mọi cấu trúc khác của câu truy vấn.
 """
 
 from abc import ABC, abstractmethod
@@ -22,7 +22,7 @@ from vasp_sql.schema_graph.graph import JoinPathStep
 
 class BaseASTPatch(ABC):
     """
-    Abstract base class for all localized AST patch operations.
+    Lớp cơ sở trừu tượng cho mọi thao tác vá cục bộ trên AST.
     """
 
     def __init__(self, reason: str, evidence: str):
@@ -32,26 +32,26 @@ class BaseASTPatch(ABC):
     @abstractmethod
     def apply(self, ast: exp.Expression) -> exp.Expression:
         """
-        Apply the patch to a copy of the AST, returning the modified AST.
+        Áp bản vá lên một bản sao của AST, trả về AST đã sửa.
         """
         pass
 
     @abstractmethod
     def to_record(self) -> ASTPatchRecord:
         """
-        Convert to structured ASTPatchRecord for reporting.
+        Chuyển thành ASTPatchRecord có cấu trúc để báo cáo.
         """
         pass
 
 
 class ReplaceColumnPatch(BaseASTPatch):
     """
-    Replaces an invalid/misspelled column node in the AST with a validated column name.
+    Thay một nút cột sai / gõ sai trong AST bằng tên cột đã được kiểm chứng.
 
-    Alias-aware: the diagnosis reports the *physical* table (e.g. ``loan``) while the
-    query usually writes an alias (``T2.accoount_id``). Qualifiers are resolved through
-    the enclosing SELECT's FROM clause before comparing, and a ``table.column``
-    suggestion is written back with the alias used in that SELECT.
+    Hiểu tên tắt: bước chẩn đoán báo bảng *thật* (VD ``loan``) trong khi câu truy vấn
+    thường viết tên tắt (``T2.accoount_id``). Tiền tố được phân giải qua mệnh đề FROM của
+    SELECT bao quanh trước khi so sánh, và gợi ý dạng ``bảng.cột`` được ghi lại bằng
+    tên tắt mà SELECT đó đang dùng.
     """
 
     def __init__(
@@ -111,7 +111,7 @@ class ReplaceColumnPatch(BaseASTPatch):
 
 class ReplaceTablePatch(BaseASTPatch):
     """
-    Replaces an invalid table node in the AST with a validated table name.
+    Thay một nút bảng sai trong AST bằng tên bảng đã được kiểm chứng.
     """
 
     def __init__(
@@ -129,12 +129,12 @@ class ReplaceTablePatch(BaseASTPatch):
         cloned_ast = ast.copy()
         old_lower = self.old_table.lower()
 
-        # Rename every reference to the wrong table; an alias ("FROM caards AS T1") is kept as is.
+        # Đổi mọi chỗ tham chiếu tới bảng sai; tên tắt ("FROM caards AS T1") giữ nguyên.
         for tbl_node in cloned_ast.find_all(exp.Table):
             if tbl_node.name.lower() == old_lower:
                 quoted = bool(tbl_node.this.args.get("quoted")) if isinstance(tbl_node.this, exp.Identifier) else False
                 tbl_node.set("this", exp.to_identifier(self.new_table, quoted=quoted or None))
-        # Columns qualified with the wrong table name itself ("caards.id") follow the rename.
+        # Cột có tiền tố là chính tên bảng sai ("caards.id") cũng được đổi theo.
         for col_node in cloned_ast.find_all(exp.Column):
             if col_node.table and col_node.table.lower() == old_lower:
                 col_node.set("table", exp.to_identifier(self.new_table))
@@ -154,18 +154,18 @@ class ReplaceTablePatch(BaseASTPatch):
 
 class AddJoinPatch(BaseASTPatch):
     """
-    Adds a missing join predicate using a validated JoinPathStep from the Knowledge Graph.
+    Thêm điều kiện nối còn thiếu, dùng một JoinPathStep đã kiểm chứng từ đồ thị tri thức.
 
-    Works on one SELECT (``select_index`` = position in ``ast.find_all(exp.Select)``) and is
-    alias-aware: the ON clause uses the aliases already written in the query
-    (``T1.driverId = T2.driverId``), and an existing table reference keeps its alias.
+    Làm việc trên một SELECT (``select_index`` = vị trí trong ``ast.find_all(exp.Select)``) và
+    hiểu tên tắt: mệnh đề ON dùng các tên tắt đã có trong câu
+    (``T1.driverId = T2.driverId``), và bảng đã có trong câu giữ nguyên tên tắt của nó.
 
-    Cases for the table being linked in (the step table that is not yet connected):
-      * written as ``CROSS JOIN t`` / ``FROM a, t`` without predicate -> turned into
-        ``INNER JOIN t ON <link>`` in place (moved to the end only if the link refers
-        to a table declared later);
-      * joined with an ON that does not link it -> ``ON <old> AND <link>``;
-      * not in the query at all (intermediate table of a multi-hop path) -> appended.
+    Các trường hợp của bảng cần nối vào (bảng trong bước nối chưa được nối):
+      * viết dạng ``CROSS JOIN t`` / ``FROM a, t`` không có điều kiện -> đổi tại chỗ thành
+        ``INNER JOIN t ON <điều kiện>`` (chỉ chuyển xuống cuối nếu điều kiện dùng tới
+        bảng được khai báo sau);
+      * đã JOIN với ON nhưng ON không nối tới nó -> ``ON <cũ> AND <điều kiện>``;
+      * chưa có trong câu (bảng trung gian của đường nối nhiều chặng) -> thêm vào cuối.
     """
 
     def __init__(
@@ -178,7 +178,7 @@ class AddJoinPatch(BaseASTPatch):
         super().__init__(reason, evidence)
         self.step = step
         self.select_index = select_index
-        self.joined_table = step.to_table  # updated in apply(); used by to_record()
+        self.joined_table = step.to_table  # được cập nhật trong apply(); dùng bởi to_record()
 
     def apply(self, ast: exp.Expression) -> exp.Expression:
         cloned_ast = ast.copy()
@@ -191,7 +191,7 @@ class AddJoinPatch(BaseASTPatch):
         items = from_items(select_node)
         first_key = item_key(items[0]) if items else None
 
-        # Which tables are already connected to the base FROM table?
+        # Những bảng nào đã nối với bảng gốc của FROM?
         connected = set()
         comps = self.schema_free_components(select_node)
         for comp in comps:
@@ -200,7 +200,7 @@ class AddJoinPatch(BaseASTPatch):
         in_query = {it.name.lower() for it in items if isinstance(it, exp.Table) and it.name}
 
         if to_tbl in connected and from_tbl in connected:
-            return cloned_ast  # nothing to do
+            return cloned_ast  # không cần làm gì
         if to_tbl in connected or (from_tbl not in connected and from_tbl in in_query and to_tbl not in in_query):
             link_tbl, link_col, new_tbl, new_col = to_tbl, self.step.to_column, from_tbl, self.step.from_column
         else:
@@ -210,7 +210,7 @@ class AddJoinPatch(BaseASTPatch):
         quals = table_to_qualifier(select_node)
         link_q = quals.get(link_tbl, link_tbl)
 
-        # Locate the existing reference to new_tbl (prefer one that is not connected)
+        # Tìm chỗ đang tham chiếu tới new_tbl (ưu tiên chỗ chưa được nối)
         frm = get_from(select_node)
         joins = list(select_node.args.get("joins") or [])
         target_join = None
@@ -244,7 +244,7 @@ class AddJoinPatch(BaseASTPatch):
                 target_join.set("on", link_pred)
                 target_join.set("kind", "INNER")
                 target_join.set("side", None)
-                # if the link table is declared after this join, move the join to the end
+                # nếu bảng dùng để nối được khai báo sau JOIN này thì chuyển JOIN xuống cuối
                 order = [item_key(it) for it in from_items(select_node)]
                 if link_q.lower() in order and order.index(link_q.lower()) > order.index(new_q.lower()):
                     joins.remove(target_join)
@@ -260,7 +260,7 @@ class AddJoinPatch(BaseASTPatch):
 
     @staticmethod
     def schema_free_components(select_node: exp.Select):
-        """Connected FROM items using only the predicates written in the query (no schema needed)."""
+        """Các mục FROM liên thông, chỉ dựa trên các điều kiện viết trong câu (không cần schema)."""
         from vasp_sql.core.schema import SchemaMetadata
         return select_components(select_node, SchemaMetadata(db_id="_"), resolve_physical=False)
 
@@ -273,4 +273,54 @@ class AddJoinPatch(BaseASTPatch):
             replacement_fragment=f"JOIN {self.joined_table} ON {predicate}",
             reason=self.reason,
             evidence=self.evidence
+        )
+
+
+class ReplacePredicateValuePatch(BaseASTPatch):
+    """
+    Thay một giá trị lọc (literal) bằng giá trị THẬT lấy từ database.
+
+    VD:  WHERE CharterNum = '40'   ->   WHERE CharterNum = '0040'
+    Chỉ đổi đúng một nút literal (xác định bằng vị trí trong list(ast.find_all(exp.Literal))),
+    mọi phần khác của câu giữ nguyên. Kiểu của giá trị mới (chữ / số) theo đúng kiểu lưu trong database.
+    """
+
+    def __init__(
+        self,
+        literal_index: int,
+        old_literal_sql: str,
+        new_value,
+        column: str = "",
+        reason: str = "Value does not occur in the database column",
+        evidence: str = "Closest value stored in the database",
+    ):
+        super().__init__(reason, evidence)
+        self.literal_index = literal_index
+        self.old_literal_sql = old_literal_sql
+        self.new_value = new_value
+        self.column = column
+
+    def _new_literal(self) -> exp.Literal:
+        if isinstance(self.new_value, (int, float)) and not isinstance(self.new_value, bool):
+            return exp.Literal.number(self.new_value)
+        return exp.Literal.string(str(self.new_value))
+
+    def apply(self, ast: exp.Expression) -> exp.Expression:
+        cloned_ast = ast.copy()
+        literals = list(cloned_ast.find_all(exp.Literal))
+        if self.literal_index < len(literals):
+            node = literals[self.literal_index]
+            # an toàn: chỉ thay khi đúng là literal cũ
+            if node.sql(dialect="sqlite") == self.old_literal_sql:
+                node.replace(self._new_literal())
+        return cloned_ast
+
+    def to_record(self) -> ASTPatchRecord:
+        return ASTPatchRecord(
+            patch_type="ReplacePredicateValue",
+            target_node_id=self.column or None,
+            original_fragment=self.old_literal_sql,
+            replacement_fragment=self._new_literal().sql(dialect="sqlite"),
+            reason=self.reason,
+            evidence=self.evidence,
         )

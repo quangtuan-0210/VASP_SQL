@@ -1,5 +1,5 @@
 """
-Standardized Data Models for Generators and Evaluation Samples in VASP-SQL.
+Các mô hình dữ liệu chuẩn cho AI sinh SQL và mẫu đánh giá trong VASP-SQL.
 """
 
 from typing import Any, Dict, Optional
@@ -10,7 +10,7 @@ from vasp_sql.core.feedback import ExecutionFeedback
 
 class EvaluationSample(BaseModel):
     """
-    Standardized benchmark question sample (from BIRD or other benchmarks).
+    Mẫu câu hỏi benchmark đã chuẩn hoá (từ BIRD hoặc benchmark khác).
     """
     question_id: int = Field(description="Unique question identifier.")
     db_id: str = Field(description="Database identifier associated with this question.")
@@ -22,8 +22,8 @@ class EvaluationSample(BaseModel):
 
 class GeneratorOutput(BaseModel):
     """
-    Standardized representation of the output produced by any SQL generator (G1, G2, G3).
-    This serves as the clean, uniform input contract for the VASP-SQL repair layer.
+    Dạng chuẩn của đầu ra từ mọi AI sinh SQL (G1, G2, G3).
+    Đây là "hợp đồng" đầu vào thống nhất, sạch sẽ cho lớp sửa lỗi VASP-SQL.
     """
     sample_id: int = Field(description="ID of the evaluation sample.")
     db_id: str = Field(description="Target database identifier.")

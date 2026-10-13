@@ -1,6 +1,6 @@
 """
-Schema Knowledge Graph using NetworkX.
-Provides foreign key join path discovery, multi-hop joins, and candidate column matching.
+Đồ thị tri thức schema dùng NetworkX.
+Tìm đường nối theo khóa ngoại, nối nhiều chặng và tìm cột gần giống.
 """
 
 from difflib import SequenceMatcher
@@ -19,8 +19,8 @@ class JoinPathStep(BaseModel):
 
     def to_sql_predicate(self, alias_map: Optional[Dict[str, str]] = None) -> str:
         """
-        Generate SQL ON clause predicate, using aliases if provided.
-        Example: 'e.dept_id = d.dept_id'
+        Tạo điều kiện ON bằng SQL, dùng tên tắt nếu được cung cấp.
+        Ví dụ: 'e.dept_id = d.dept_id'
         """
         alias_map = alias_map or {}
         tbl_a = alias_map.get(self.from_table.lower(), self.from_table)
@@ -30,16 +30,16 @@ class JoinPathStep(BaseModel):
 
 class SchemaKnowledgeGraph:
     """
-    Graph representation of database schema:
-    - Table-to-Column hierarchy
-    - Foreign-key relationship graph for automatic multi-table join synthesis
+    Biểu diễn schema database dạng đồ thị:
+    - Phân cấp bảng -> cột
+    - Đồ thị quan hệ khóa ngoại để tự động dựng phép nối nhiều bảng
     """
 
     def __init__(self, schema: Optional[SchemaMetadata] = None):
         self.schema = schema
-        # We use a MultiGraph for tables to support multiple FKs between the same pair of tables
+        # Dùng MultiGraph cho bảng để có thể có nhiều khóa ngoại giữa cùng hai bảng
         self.table_graph = nx.MultiGraph()
-        # Full graph containing both table and column nodes
+        # Đồ thị đầy đủ gồm cả nút bảng và nút cột
         self.full_graph = nx.Graph()
 
         if schema:
@@ -47,13 +47,13 @@ class SchemaKnowledgeGraph:
 
     def build_from_schema(self, schema: SchemaMetadata) -> None:
         """
-        Construct Knowledge Graph from SchemaMetadata.
+        Dựng đồ thị tri thức từ SchemaMetadata.
         """
         self.schema = schema
         self.table_graph.clear()
         self.full_graph.clear()
 
-        # 1. Add table and column nodes
+        # 1. Thêm nút bảng và nút cột
         for tbl_name, tbl_meta in schema.tables.items():
             tbl_lower = tbl_name.lower()
             self.table_graph.add_node(tbl_lower, type="table", name=tbl_name)
@@ -71,7 +71,7 @@ class SchemaKnowledgeGraph:
                 )
                 self.full_graph.add_edge(tbl_lower, col_id, rel="has_column")
 
-        # 2. Add foreign key edges
+        # 2. Thêm cạnh khóa ngoại
         for fk in schema.foreign_keys:
             from_tbl = fk.from_table.lower()
             to_tbl = fk.to_table.lower()
@@ -86,7 +86,7 @@ class SchemaKnowledgeGraph:
                     to_col=fk.to_column
                 )
 
-                # Connect columns in full graph as well
+                # Nối các cột trong đồ thị đầy đủ
                 from_col_id = f"{from_tbl}.{fk.from_column.lower()}"
                 to_col_id = f"{to_tbl}.{fk.to_column.lower()}"
                 if self.full_graph.has_node(from_col_id) and self.full_graph.has_node(to_col_id):
@@ -94,8 +94,8 @@ class SchemaKnowledgeGraph:
 
     def find_join_path(self, table_a: str, table_b: str) -> Optional[List[JoinPathStep]]:
         """
-        Find shortest join path between two tables using foreign keys.
-        Supports multi-hop traversal (e.g. A -> B -> C).
+        Tìm đường nối ngắn nhất giữa hai bảng theo khóa ngoại.
+        Hỗ trợ nối nhiều chặng (VD A -> B -> C).
         """
         src = table_a.lower()
         dst = table_b.lower()
@@ -110,7 +110,7 @@ class SchemaKnowledgeGraph:
         except (nx.NetworkXNoPath, nx.NodeNotFound):
             return None
 
-        # Build JoinPathSteps along the shortest path
+        # Dựng các JoinPathStep dọc theo đường ngắn nhất
         join_steps: List[JoinPathStep] = []
         for i in range(len(path_nodes) - 1):
             curr_tbl = path_nodes[i]
@@ -120,17 +120,17 @@ class SchemaKnowledgeGraph:
             if not edge_data_dict:
                 return None
 
-            # Pick first available FK edge between these two tables
+            # Lấy cạnh khóa ngoại đầu tiên giữa hai bảng này
             first_edge = next(iter(edge_data_dict.values()))
-            # The graph is undirected: if we walk the FK edge backwards (from the
-            # referenced table to the referencing one), swap the columns so that
-            # from_column always belongs to curr_tbl.
+            # Đồ thị vô hướng: nếu đi ngược cạnh khóa ngoại (từ bảng được tham chiếu
+            # sang bảng tham chiếu) thì đổi chỗ hai cột để
+            # from_column luôn thuộc về curr_tbl.
             if first_edge.get("fk_from_table", curr_tbl) == curr_tbl:
                 from_col, to_col = first_edge["from_col"], first_edge["to_col"]
             else:
                 from_col, to_col = first_edge["to_col"], first_edge["from_col"]
 
-            # Maintain correct directional join step
+            # Giữ đúng chiều của bước nối
             join_steps.append(
                 JoinPathStep(
                     from_table=curr_tbl,
@@ -144,9 +144,9 @@ class SchemaKnowledgeGraph:
 
     def all_shortest_join_paths(self, table_a: str, table_b: str, limit: int = 10) -> List[List[JoinPathStep]]:
         """
-        Every shortest join path between two tables, expanding parallel FK edges:
-        superhero -> colour has 3 FKs (eye / hair / skin colour) -> 3 separate one-step paths.
-        Used to detect when a join cannot be chosen from the schema alone.
+        Mọi đường nối ngắn nhất giữa hai bảng, tách riêng từng cạnh khóa ngoại song song:
+        superhero -> colour có 3 khóa ngoại (màu mắt / tóc / da) -> 3 đường một bước riêng.
+        Dùng để phát hiện khi chỉ dựa vào schema thì không chọn được cách nối.
         """
         src, dst = table_a.lower(), table_b.lower()
         if src not in self.table_graph or dst not in self.table_graph or src == dst:
@@ -177,7 +177,7 @@ class SchemaKnowledgeGraph:
 
     def find_connecting_join_tree(self, required_tables: List[str]) -> List[JoinPathStep]:
         """
-        Find join steps connecting all required tables (approximating minimal Steiner tree).
+        Tìm các bước nối liên kết mọi bảng cần thiết (xấp xỉ cây Steiner nhỏ nhất).
         """
         tables = [t.lower() for t in required_tables if t.lower() in self.table_graph]
         if len(tables) <= 1:
@@ -200,7 +200,7 @@ class SchemaKnowledgeGraph:
                             best_target = target
 
             if not best_path or not best_target:
-                break  # Graph disconnected
+                break  # Đồ thị bị tách rời
 
             all_join_steps.extend(best_path)
             for step in best_path:
@@ -218,8 +218,8 @@ class SchemaKnowledgeGraph:
         top_k: int = 5
     ) -> List[Tuple[str, str, float]]:
         """
-        Find candidate columns matching a misspelled or fuzzy column name.
-        Returns: list of (table_name, column_name, similarity_score) sorted by score.
+        Tìm các cột ứng viên gần giống một tên cột gõ sai hoặc mơ hồ.
+        Trả về: danh sách (tên_bảng, tên_cột, độ_giống), sắp theo độ giống.
         """
         if not self.schema:
             return []
@@ -245,6 +245,6 @@ class SchemaKnowledgeGraph:
                 if score >= min_similarity:
                     candidates.append((tbl_meta.name, col_meta.name, round(score, 3)))
 
-        # Sort descending by similarity
+        # Sắp xếp giảm dần theo độ giống
         candidates.sort(key=lambda x: x[2], reverse=True)
         return candidates[:top_k]

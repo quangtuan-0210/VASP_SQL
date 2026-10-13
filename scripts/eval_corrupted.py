@@ -1,27 +1,26 @@
 """
-Step 2 — Controlled-corruption evaluation on BIRD.
+Bước 2 — Đánh giá bằng lỗi có kiểm soát trên BIRD.
 
-Takes gold SQL that the layer already leaves UNCHANGED (clean base, see eval_gold.py),
-injects one labelled fault, runs repair() and checks the result against gold with
-BIRD's EX criterion.
+Lấy các câu gold SQL mà lớp sửa lỗi đã để nguyên (UNCHANGED) làm gốc sạch (xem eval_gold.py),
+cài một lỗi có nhãn, chạy repair() rồi so kết quả với gold theo tiêu chí EX của BIRD.
 
-Fault types (one fault per variant, location recorded):
-  column_typo : one column identifier misspelled (drop / swap / duplicate a character)
-  table_typo  : one table identifier misspelled
-  join_drop   : ON predicate removed from one JOIN (-> Cartesian product)
+Các loại lỗi (mỗi biến thể một lỗi, có ghi vị trí):
+  column_typo : gõ sai một tên cột (bỏ / đảo / lặp một ký tự)
+  table_typo  : gõ sai một tên bảng
+  join_drop   : bỏ điều kiện ON của một JOIN (-> tích Descartes)
 
-Outcome per variant:
-  FIXED      REPAIRED and result == gold           (repair success)
-  WRONG_FIX  REPAIRED but result != gold           (false repair)
-  ABSTAIN    layer refused to change the query
-  MISSED     layer returned UNCHANGED for a broken query
+Kết quả mỗi biến thể:
+  FIXED      REPAIRED và kết quả == gold          (sửa thành công)
+  WRONG_FIX  REPAIRED nhưng kết quả != gold        (sửa sai)
+  ABSTAIN    lớp sửa lỗi từ chối sửa
+  MISSED     lớp sửa lỗi trả về UNCHANGED dù câu đã hỏng
 
-Variants whose corrupted query still returns the gold result are discarded ("ineffective").
+Biến thể mà câu bị làm hỏng vẫn cho đúng kết quả gold thì bị bỏ ("ineffective").
 
-Usage (from project root):
-    py scripts/eval_corrupted.py                                 # uses results/gold_eval/per_sample.jsonl
+Cách chạy (từ thư mục gốc project):
+    py scripts/eval_corrupted.py                                 # dùng results/gold_eval/per_sample.jsonl
     py scripts/eval_corrupted.py --per-type 200 --seed 42
-Outputs: results/corrupted_eval/{variants.jsonl, summary.json, summary.md}
+Đầu ra: results/corrupted_eval/{variants.jsonl, summary.json, summary.md}
 """
 
 import argparse
@@ -37,13 +36,14 @@ from eval_common import ex_match, run_sql_full
 
 from vasp_sql.adapters.bird_loader import BirdDatasetLoader
 from vasp_sql.ast.parser import SQLParser
+from vasp_sql.core.policy import RepairPolicy
 from vasp_sql.pipeline import repair
 
 PARSER = SQLParser(default_dialect="sqlite")
 FAULT_TYPES = ("column_typo", "table_typo", "join_drop")
 
 
-# ----------------------------------------------------------------------------- mutations
+# ----------------------------------------------------------------------------- tạo lỗi
 def misspell(name: str, rng: random.Random) -> str:
     if len(name) < 3:
         return name + name[-1]
@@ -105,7 +105,7 @@ def corrupt_join(ast, schema, rng):
 MUTATORS = {"column_typo": corrupt_column, "table_typo": corrupt_table, "join_drop": corrupt_join}
 
 
-# ----------------------------------------------------------------------------- main
+# ----------------------------------------------------------------------------- chương trình chính
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/bird_config.yaml")
@@ -116,11 +116,20 @@ def main():
     ap.add_argument("--out", default="results/corrupted_eval")
     ap.add_argument("--llm", action="store_true",
                     help="bật Gate F bằng LLM (đọc cấu hình server từ .env); câu trả lời được lưu đệm ở results/llm_cache.jsonl")
+    ap.add_argument("--ast-only", action="store_true",
+                    help="đối chứng AST-only (mục 5.6): không đồ thị schema, không sửa giá trị, không LLM")
+    ap.add_argument("--split", default=None, choices=["tune", "report"],
+                    help="chỉ dùng câu thuộc phần này của configs/splits/bird_dev_split.json")
     ap.add_argument("--resume", action="store_true", help="continue an interrupted run")
     ap.add_argument("--max-seconds", type=float, default=None, help="stop after this many seconds (use with --resume)")
     args = ap.parse_args()
 
     loader = BirdDatasetLoader(args.config)
+    policy = None
+    if args.ast_only:
+        if args.llm:
+            raise SystemExit("--ast-only không dùng cùng --llm")
+        policy = RepairPolicy(use_schema_graph=False, allow_value_repair=False)
     llm = None
     if args.llm:
         from vasp_sql.llm import LLMClient  # chỉ cần khi bật --llm
@@ -128,6 +137,9 @@ def main():
         print(f"Gate F dùng LLM: {llm.model} @ {llm.base_url}")
     by_id = {s.question_id: s for s in loader.samples}
     clean_ids = [r["question_id"] for r in load_jsonl(args.gold_results) if r.get("status") == "UNCHANGED"]
+    if args.split:
+        keep = set(json.load(open("configs/splits/bird_dev_split.json", encoding="utf-8"))[args.split])
+        clean_ids = [i for i in clean_ids if i in keep]
     os.makedirs(args.out, exist_ok=True)
 
     out_path = os.path.join(args.out, "variants.jsonl")
@@ -136,7 +148,7 @@ def main():
     records = [r for r in previous if "_skip" not in r]
     t0 = time.time()
     fout = open(out_path, "w", encoding="utf-8")
-    for r in previous:  # rewrite cleanly
+    for r in previous:  # ghi lại file cho sạch
         fout.write(json.dumps(r, ensure_ascii=False) + "\n")
     finished = True
     for ftype in FAULT_TYPES:
@@ -153,12 +165,12 @@ def main():
             db_path = loader.get_db_path(s.db_id)
             schema = loader.get_schema(s.db_id)
             ast = PARSER.parse(s.golden_sql).copy()
-            info = MUTATORS[ftype](ast, schema, rng)  # always called: keeps the random sequence identical on resume
+            info = MUTATORS[ftype](ast, schema, rng)  # luôn gọi: giữ nguyên chuỗi số ngẫu nhiên khi chạy tiếp (resume)
             if info is None:
                 skipped["not_applicable"] += 1
                 continue
             prev = done.get((ftype, qid))
-            if prev is not None:  # already handled in an earlier (interrupted) run
+            if prev is not None:  # đã xử lý trong một lần chạy trước (bị ngắt giữa chừng)
                 if "_skip" in prev:
                     skipped[prev["_skip"]] += 1
                 else:
@@ -178,7 +190,7 @@ def main():
             if not ok:
                 skip("gold_exec_error")
                 continue
-            # discard variants that are still "correct"
+            # bỏ các biến thể vẫn còn "đúng"
             if ex_match(db_path, bad_sql, gold_rows, timeout_s=10.0):
                 skip("ineffective")
                 continue
@@ -188,7 +200,7 @@ def main():
                    "corrupted_sql": bad_sql, **{f"fault_{k}": v for k, v in info.items()}}
             try:
                 res = repair(question=s.question, sql=bad_sql, schema=schema,
-                             db_path=db_path, evidence=s.evidence, llm=llm)
+                             db_path=db_path, evidence=s.evidence, llm=llm, policy=policy)
                 if res.status.value == "REPAIRED":
                     outcome = "FIXED" if ex_match(db_path, res.final_sql, gold_rows) else "WRONG_FIX"
                 elif res.status.value == "ABSTAIN":
@@ -200,6 +212,7 @@ def main():
                            patches=[p.patch_type for p in res.patches_applied],
                            replacements=[p.replacement_fragment for p in res.patches_applied],
                            ast_edit_size=res.metrics.get("ast_edit_size"),
+                           ast_nodes_changed=res.metrics.get("ast_nodes_changed"),
                            abstain_reason=res.abstain_reason,
                            latency_ms=res.metrics.get("latency_ms"),
                            llm_calls=res.metrics.get("llm_calls", 0),
@@ -242,15 +255,16 @@ def summarize(records, args, elapsed):
         table["ALL"][r["outcome"]] += 1
     edit = defaultdict(list)
     for r in recs:
-        if r["outcome"] == "FIXED" and r.get("ast_edit_size") is not None:
-            edit[r["fault_type"]].append(r["ast_edit_size"])
+        size = r.get("ast_nodes_changed", r.get("ast_edit_size"))  # ưu tiên chỉ số mới (đếm cả đổi tên)
+        if r["outcome"] == "FIXED" and size is not None:
+            edit[r["fault_type"]].append(size)
 
     summary = {"seed": args.seed, "per_type_cap": args.per_type, "elapsed_s": round(elapsed, 1),
                "skipped": meta, "results": {}}
     lines = ["# Controlled-corruption evaluation (Step 2)", "",
              f"Seed {args.seed}, up to {args.per_type} effective variants per fault type; "
              "bases = gold SQL left UNCHANGED in Step 1.", "",
-             "| Fault type | N | FIXED (RSR) | WRONG_FIX | ABSTAIN | MISSED | CRASH | avg AST edit (fixed) |",
+             "| Fault type | N | FIXED (RSR) | WRONG_FIX | ABSTAIN | MISSED | CRASH | avg AST nodes changed (fixed) |",
              "|---|---:|---:|---:|---:|---:|---:|---:|"]
     for ft in list(FAULT_TYPES) + ["ALL"]:
         c = table[ft]

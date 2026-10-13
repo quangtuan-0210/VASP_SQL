@@ -1,5 +1,5 @@
 """
-Unit tests for Phase 3.2: Complete End-to-End VASP-SQL Repair Pipeline.
+Unit test cho Giai đoạn 3.2: toàn bộ pipeline sửa lỗi VASP-SQL từ đầu đến cuối.
 """
 
 import os
@@ -14,7 +14,7 @@ from vasp_sql.pipeline import repair
 
 @pytest.fixture
 def company_db():
-    """Create a temporary SQLite database for testing repair pipeline."""
+    """Tạo database SQLite tạm để kiểm tra pipeline sửa lỗi."""
     fd, path = tempfile.mkstemp(suffix=".sqlite")
     os.close(fd)
 
@@ -61,7 +61,7 @@ def company_db():
 
 
 def test_pipeline_unchanged_on_valid_query(company_db):
-    """Test that a valid query is preserved without modification (UNCHANGED)."""
+    """Kiểm tra câu hợp lệ được giữ nguyên (UNCHANGED)."""
     db_path, schema = company_db
 
     valid_sql = "SELECT emp_name, salary FROM employees WHERE salary > 70000;"
@@ -79,10 +79,10 @@ def test_pipeline_unchanged_on_valid_query(company_db):
 
 
 def test_pipeline_repairs_misspelled_column(company_db):
-    """Test repairing a query with a misspelled column name using AST patch."""
+    """Kiểm tra sửa câu có tên cột gõ sai bằng bản vá trên AST."""
     db_path, schema = company_db
 
-    # Typo: 'employe_nam' instead of 'emp_name'
+    # Gõ sai: 'employe_nam' thay vì 'emp_name'
     buggy_sql = "SELECT employe_nam, salary FROM employees WHERE salary > 70000;"
     result = repair(
         question="Which employees make more than 70k?",
@@ -99,10 +99,10 @@ def test_pipeline_repairs_misspelled_column(company_db):
 
 
 def test_pipeline_repairs_missing_join(company_db):
-    """Test repairing a query that references two tables without join predicate."""
+    """Kiểm tra sửa câu tham chiếu hai bảng mà thiếu điều kiện nối."""
     db_path, schema = company_db
 
-    # Buggy: Cartesian product / missing join
+    # Câu lỗi: tích Descartes / thiếu điều kiện nối
     buggy_sql = "SELECT employees.emp_name, departments.dept_name FROM employees, departments;"
     result = repair(
         question="List employee names and their department names.",
@@ -118,10 +118,10 @@ def test_pipeline_repairs_missing_join(company_db):
 
 
 def test_pipeline_abstains_on_irrecoverable_query(company_db):
-    """Test that the system safely abstains when the query is completely irrecoverable."""
+    """Kiểm tra hệ thống từ chối sửa an toàn khi câu hoàn toàn không cứu được."""
     db_path, schema = company_db
 
-    # Nonsense query referring to tables/columns that do not exist at all
+    # Câu vô nghĩa, tham chiếu bảng/cột hoàn toàn không tồn tại
     nonsense_sql = "SELECT fake_field_xyz FROM non_existent_table_999;"
     result = repair(
         question="What is the profit?",

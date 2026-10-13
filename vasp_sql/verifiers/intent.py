@@ -29,7 +29,7 @@ SYSTEM = (
 )
 
 
-def schema_snippet(schema: SchemaMetadata, sqls: List[str], max_cols: int = 40) -> str:
+def schema_snippet(schema: SchemaMetadata, sqls: List[str], max_cols: int = 300) -> str:
     """Rút gọn schema: chỉ lấy các bảng xuất hiện trong (các) câu SQL, kèm khóa ngoại giữa chúng."""
     import sqlglot
 
@@ -67,31 +67,48 @@ class IntentVerifier:
     def __init__(self, llm):
         self.llm = llm
         self.calls = 0  # số lần gọi LLM trong lần sửa hiện tại (để kiểm soát ngân sách)
+        self.last_other_issues = ""  # cảnh báo của LLM về phần nằm ngoài vùng sửa
 
     def reset(self):
         self.calls = 0
 
     # ---------------------------------------------------------------- 1. kiểm tra
     def check(self, question: str, evidence: Optional[str], schema: SchemaMetadata,
-              original_sql: str, candidate_sql: str) -> Tuple[str, str]:
-        """Trả về (verdict, lý do). verdict ∈ {"yes", "no", "unsure"}."""
+              original_sql: str, candidate_sql: str, changes: Optional[List[str]] = None) -> Tuple[str, str]:
+        """
+        Trả về (verdict, lý do). verdict ∈ {"yes", "no", "unsure"}.
+
+        LLM chỉ được chấm PHẦN ĐÃ THAY ĐỔI (changes), không chấm phần còn lại của câu SQL.
+        Lý do: phần còn lại là do bộ sinh SQL viết; nếu nó chưa khớp câu hỏi thì đó không phải lỗi
+        của bản sửa, và lớp sửa lỗi cũng không được phép sửa ngoài vùng đã định vị.
+        (Lần chạy đầu cho LLM chấm cả câu -> loại nhầm 157 bản sửa đúng.)
+        """
+        change_text = "\n".join(f"- {c}" for c in (changes or [])) or "(see the two queries)"
         prompt = (
             f"Question: {question}\n"
             f"Hint: {evidence or '(none)'}\n\n"
             f"Schema:\n{schema_snippet(schema, [candidate_sql, original_sql])}\n\n"
-            f"Original SQL (contained an error):\n{original_sql}\n\n"
+            f"Original SQL (fails because of a local error):\n{original_sql}\n\n"
             f"Repaired SQL:\n{candidate_sql}\n\n"
-            "Does the repaired SQL correctly answer the question? Judge only meaning "
-            "(tables, joins, columns, filters, aggregation), not style.\n"
-            'Reply JSON: {"verdict": "yes" | "no" | "unsure", "reason": "<one sentence>"}'
+            f"The repair changed ONLY this:\n{change_text}\n\n"
+            "Answer two separate things:\n"
+            "1) change_correct: is THIS change the right fix for what the question means "
+            "(right column / table / join condition)? Decide this on its own, even if other parts of "
+            "the query look wrong.\n"
+            "2) other_issues: briefly note any problem you see OUTSIDE the change (or empty string).\n"
+            'Reply JSON: {"change_correct": "yes" | "no" | "unsure", "reason": "<one sentence about the change>", '
+            '"other_issues": "<short note or empty>"}'
         )
         self.calls += 1
         text = self.llm.chat([{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
-                             max_tokens=200)
+                             max_tokens=250)
         data = _parse_json(text)
-        verdict = str(data.get("verdict", "unsure")).strip().lower()
+        # Chỉ "change_correct" quyết định; "other_issues" là cảnh báo về phần ngoài vùng sửa
+        # (thường là lỗi sẵn có của câu gốc — lớp sửa lỗi không được phép đụng vào).
+        verdict = str(data.get("change_correct", data.get("verdict", "unsure"))).strip().lower()
         if verdict not in ("yes", "no", "unsure"):
             verdict = "unsure"
+        self.last_other_issues = str(data.get("other_issues", ""))[:300]
         return verdict, str(data.get("reason", ""))[:300]
 
     # ---------------------------------------------------------------- 2. chọn phương án
@@ -105,7 +122,8 @@ class IntentVerifier:
             f"Schema:\n{schema_snippet(schema, options)}\n\n"
             f"Original SQL (missing a join condition):\n{original_sql}\n\n"
             f"Candidate repairs (they differ only in how tables are joined):\n{listed}\n\n"
-            "Which option answers the question? If none clearly fits, answer 0.\n"
+            "Which join condition matches what the question means? Judge only the join condition; "
+            "ignore other parts of the query. If none clearly fits, answer 0.\n"
             'Reply JSON: {"option": <number>, "reason": "<one sentence>"}'
         )
         self.calls += 1

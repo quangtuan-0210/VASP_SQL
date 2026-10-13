@@ -1,5 +1,5 @@
 """
-Database Schema Representation and Metadata for VASP-SQL.
+Biểu diễn schema database và siêu dữ liệu cho VASP-SQL.
 """
 
 from enum import Enum
@@ -90,7 +90,7 @@ class SchemaMetadata(BaseModel):
     @classmethod
     def from_sqlite_db(cls, db_path: str, db_id: Optional[str] = None) -> "SchemaMetadata":
         """
-        Introspect an active SQLite database file to construct SchemaMetadata automatically.
+        Đọc một file database SQLite để tự động dựng SchemaMetadata.
         """
         import os
         actual_db_id = db_id or os.path.splitext(os.path.basename(db_path))[0]
@@ -99,13 +99,13 @@ class SchemaMetadata(BaseModel):
         conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         cursor = conn.cursor()
 
-        # Get list of tables
+        # Lấy danh sách bảng
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
         tables = [row[0] for row in cursor.fetchall()]
 
         for tbl_name in tables:
             tbl_meta = TableMetadata(name=tbl_name)
-            # Table info: cid, name, type, notnull, dflt_value, pk
+            # Thông tin bảng: cid, name, type, notnull, dflt_value, pk
             cursor.execute(f"PRAGMA table_info('{tbl_name}');")
             for row in cursor.fetchall():
                 col_name = row[1]
@@ -123,7 +123,7 @@ class SchemaMetadata(BaseModel):
 
             schema.add_table(tbl_meta)
 
-            # Foreign keys: id, seq, table, from, to, on_update, on_delete, match
+            # Khóa ngoại: id, seq, table, from, to, on_update, on_delete, match
             cursor.execute(f"PRAGMA foreign_key_list('{tbl_name}');")
             for fk in cursor.fetchall():
                 target_table = fk[2]

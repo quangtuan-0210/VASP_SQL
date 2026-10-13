@@ -1,6 +1,6 @@
 """
-Unit tests for Phase 3.3: alias-aware patches and per-SELECT join checking.
-Regression tests for problems found by scripts/eval_gold.py and scripts/eval_corrupted.py on BIRD.
+Unit test cho Giai đoạn 3.3: bản vá hiểu tên tắt và kiểm tra nối bảng theo từng SELECT.
+Test hồi quy cho các lỗi tìm ra bởi scripts/eval_gold.py và scripts/eval_corrupted.py trên BIRD.
 """
 
 import os
@@ -19,7 +19,7 @@ from vasp_sql.verifiers.gates import VerificationPipeline
 
 @pytest.fixture
 def hero_db():
-    """superhero -< hero_power >- superpower, plus departments/employees style FK."""
+    """superhero -< hero_power >- superpower, cùng khóa ngoại kiểu departments/employees."""
     fd, path = tempfile.mkstemp(suffix=".sqlite")
     os.close(fd)
     conn = sqlite3.connect(path)
@@ -119,12 +119,12 @@ def test_join_path_columns_follow_walk_direction(hero_db):
 def test_select_alias_and_derived_table_outputs_are_not_flagged(hero_db):
     db, schema = hero_db
     queries = [
-        # SELECT alias reused in ORDER BY
+        # Tên tắt của SELECT được dùng lại trong ORDER BY
         "SELECT T1.superhero_name, COUNT(T2.power_id) AS n_powers FROM superhero AS T1 "
         "INNER JOIN hero_power AS T2 ON T1.id = T2.hero_id GROUP BY T1.id ORDER BY n_powers DESC LIMIT 1",
-        # derived-table output column used by the outer query and in HAVING
+        # cột đầu ra của bảng con được dùng ở truy vấn ngoài và trong HAVING
         "SELECT AVG(cnt) FROM (SELECT hero_id, COUNT(*) AS cnt FROM hero_power GROUP BY hero_id HAVING cnt >= 1) AS T",
-        # CTE output column
+        # cột đầu ra của CTE
         "WITH t AS (SELECT hero_id, COUNT(*) AS cnt FROM hero_power GROUP BY hero_id) SELECT MAX(cnt) FROM t",
     ]
     for sql in queries:

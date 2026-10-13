@@ -1,5 +1,5 @@
 """
-Execution and Parser Feedback representations.
+Các dạng thông tin phản hồi từ bộ phân tích cú pháp và từ lúc chạy thử.
 """
 
 from typing import Any, List, Optional

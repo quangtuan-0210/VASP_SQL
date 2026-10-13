@@ -1,5 +1,5 @@
 """
-Repair Result, Status, and Verification Gate structures for VASP-SQL.
+Kết quả sửa, trạng thái và cấu trúc các cổng kiểm tra của VASP-SQL.
 """
 
 from enum import Enum
@@ -8,18 +8,18 @@ from pydantic import BaseModel, Field
 
 
 class RepairStatus(str, Enum):
-    UNCHANGED = "UNCHANGED"   # Original query is valid; no modification needed.
-    REPAIRED = "REPAIRED"     # Successfully patched and verified through all gates.
-    ABSTAIN = "ABSTAIN"       # Insufficient confidence/evidence or gates failed; refused to patch.
+    UNCHANGED = "UNCHANGED"   # Câu gốc đã đúng; không cần sửa.
+    REPAIRED = "REPAIRED"     # Đã sửa thành công và qua mọi cổng kiểm tra.
+    ABSTAIN = "ABSTAIN"       # Không đủ độ tin cậy / bằng chứng hoặc trượt cổng kiểm tra; từ chối sửa.
 
 
 class GateType(str, Enum):
-    GATE_A_PARSE = "GATE_A_PARSE"                     # Parse and syntactic reconstruction
-    GATE_B_SCHEMA_SCOPE = "GATE_B_SCHEMA_SCOPE"       # Schema existence and scope binding
-    GATE_C_TYPE = "GATE_C_TYPE"                       # Type and expression constraint compatibility
-    GATE_D_SAFETY = "GATE_D_SAFETY"                   # Read-only and sandbox execution safety
-    GATE_E_EXECUTION = "GATE_E_EXECUTION"             # Sandbox execution and result verification
-    GATE_F_INTENT = "GATE_F_INTENT"                   # Query intent alignment with natural question
+    GATE_A_PARSE = "GATE_A_PARSE"                     # Phân tích cú pháp và dựng lại câu
+    GATE_B_SCHEMA_SCOPE = "GATE_B_SCHEMA_SCOPE"       # Bảng/cột tồn tại trong schema và gắn đúng scope
+    GATE_C_TYPE = "GATE_C_TYPE"                       # Tương thích kiểu dữ liệu và ràng buộc biểu thức
+    GATE_D_SAFETY = "GATE_D_SAFETY"                   # An toàn: chỉ đọc, chạy trong sandbox
+    GATE_E_EXECUTION = "GATE_E_EXECUTION"             # Chạy thử trong sandbox và kiểm tra kết quả
+    GATE_F_INTENT = "GATE_F_INTENT"                   # Khớp ý nghĩa với câu hỏi tự nhiên
 
 
 class GateResult(BaseModel):

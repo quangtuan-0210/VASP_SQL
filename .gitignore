@@ -43,3 +43,9 @@ datasets/
 # Temp / scratch
 *.log
 *.tmp
+
+# Code bên ngoài (MAC-SQL không có LICENSE — không đưa lên git)
+third_party/
+
+# Kết quả thực nghiệm (chỉ giữ trên máy, không đưa lên git)
+results/

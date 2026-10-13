@@ -1,6 +1,6 @@
 """
-Scope-aware AST Analysis and Symbol Resolution.
-Resolves tables, aliases, CTEs, subqueries, and column bindings.
+Phân tích AST có scope và phân giải tên.
+Phân giải bảng, tên tắt, CTE, truy vấn con và liên kết cột.
 """
 
 from typing import Any, Dict, List, Optional, Set, Union
@@ -38,23 +38,23 @@ class ScopeContext(BaseModel):
     scope_id: int = Field(default=0, description="Sequential scope identifier.")
     parent_scope_id: Optional[int] = Field(default=None, description="Parent scope ID if nested.")
     
-    # Map from alias (or table name) to TableBinding
+    # Ánh xạ từ tên tắt (hoặc tên bảng) sang TableBinding
     tables: Dict[str, TableBinding] = Field(default_factory=dict)
     
-    # Map CTE names defined in this scope
+    # Ánh xạ tên các CTE định nghĩa trong scope này
     ctes: Dict[str, TableBinding] = Field(default_factory=dict)
     
-    # All column bindings resolved in this scope
+    # Mọi liên kết cột đã phân giải trong scope này
     column_bindings: List[ColumnBinding] = Field(default_factory=list)
     
-    # List of join expressions
+    # Danh sách các biểu thức JOIN
     joins: List[Any] = Field(default_factory=list)
 
 
 class ScopeAnalyzer:
     """
-    Scope analyzer that traverses sqlglot AST and produces rich ScopeContext.
-    Resolves column bindings against SchemaMetadata when provided.
+    Bộ phân tích scope: duyệt AST của sqlglot và tạo ScopeContext đầy đủ.
+    Phân giải liên kết cột dựa trên SchemaMetadata nếu có.
     """
 
     def __init__(self, parser: Optional[SQLParser] = None):
@@ -67,7 +67,7 @@ class ScopeAnalyzer:
         dialect: str = "sqlite"
     ) -> ScopeContext:
         """
-        Analyze AST and produce scope bindings.
+        Phân tích AST và tạo các liên kết trong scope.
         """
         if isinstance(query, str):
             ast = self.parser.parse(query, dialect=dialect)
@@ -76,7 +76,7 @@ class ScopeAnalyzer:
 
         context = ScopeContext(scope_id=1)
 
-        # 1. Extract CTE definitions (WITH clause)
+        # 1. Lấy định nghĩa CTE (mệnh đề WITH)
         with_clause = ast.find(exp.With)
         if with_clause:
             for cte in with_clause.find_all(exp.CTE):
@@ -90,7 +90,7 @@ class ScopeAnalyzer:
                 context.ctes[cte_name] = cte_binding
                 context.tables[cte_name] = cte_binding
 
-        # 2. Extract tables and subqueries from FROM and JOINs
+        # 2. Lấy các bảng và truy vấn con từ FROM và JOIN
         for from_node in ast.find_all(exp.From):
             self._register_source(from_node.this, context)
 
@@ -98,7 +98,7 @@ class ScopeAnalyzer:
             context.joins.append(join_node)
             self._register_source(join_node.this, context)
 
-        # 3. Resolve columns
+        # 3. Phân giải các cột
         for col_node in ast.find_all(exp.Column):
             binding = self._resolve_column(col_node, context, schema)
             context.column_bindings.append(binding)
@@ -107,7 +107,7 @@ class ScopeAnalyzer:
 
     def _register_source(self, source_node: exp.Expression, context: ScopeContext) -> None:
         """
-        Register a table, CTE reference, or derived subquery into ScopeContext.
+        Đăng ký một bảng, tham chiếu CTE hoặc truy vấn con vào ScopeContext.
         """
         if isinstance(source_node, exp.Table):
             tbl_name = source_node.name.lower()
@@ -122,7 +122,7 @@ class ScopeAnalyzer:
                 ast_node=source_node
             )
 
-            # Map both physical table name and alias for fast lookup
+            # Lưu cả tên bảng thật lẫn tên tắt để tra cứu nhanh
             context.tables[tbl_name] = binding
             if alias:
                 context.tables[alias] = binding
@@ -145,7 +145,7 @@ class ScopeAnalyzer:
         schema: Optional[SchemaMetadata]
     ) -> ColumnBinding:
         """
-        Resolve which physical table this column node references.
+        Xác định cột này tham chiếu tới bảng thật nào.
         """
         col_name = col_node.name.lower()
         qualifier = col_node.table.lower() if col_node.table else None
@@ -155,18 +155,18 @@ class ScopeAnalyzer:
         candidates: List[str] = []
 
         if qualifier:
-            # Case 1: Column explicitly qualified (e.g. s.name or schools.name)
+            # Trường hợp 1: cột có tiền tố rõ ràng (VD s.name hoặc schools.name)
             if qualifier in context.tables:
                 resolved_table = context.tables[qualifier].table_name
                 candidates = [resolved_table]
             else:
-                # Unrecognized qualifier/alias
+                # Tiền tố / tên tắt không nhận ra
                 resolved_table = None
                 candidates = []
         else:
-            # Case 2: Column unqualified (e.g. name)
+            # Trường hợp 2: cột không có tiền tố (VD name)
             if schema:
-                # Find all tables in current scope that actually have this column in schema
+                # Tìm mọi bảng trong scope hiện tại thật sự có cột này trong schema
                 for tbl_binding in context.tables.values():
                     phys_tbl = tbl_binding.table_name
                     if schema.has_table(phys_tbl):
@@ -179,9 +179,9 @@ class ScopeAnalyzer:
                     resolved_table = candidates[0]
                 elif len(candidates) > 1:
                     is_ambiguous = True
-                    resolved_table = candidates[0]  # default to first candidate
+                    resolved_table = candidates[0]  # mặc định lấy ứng viên đầu tiên
             else:
-                # If no schema, and only 1 table in scope, bind to that table
+                # Nếu không có schema và scope chỉ có 1 bảng thì gán cho bảng đó
                 unique_tables = list({b.table_name for b in context.tables.values() if not b.is_subquery})
                 if len(unique_tables) == 1:
                     resolved_table = unique_tables[0]

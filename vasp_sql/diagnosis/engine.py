@@ -1,6 +1,6 @@
 """
-Multi-layer Diagnostic Engine for SQL queries.
-Gathers evidence across syntax, schema, scope, joins, and runtime feedback.
+Bộ chẩn đoán lỗi nhiều tầng cho câu SQL.
+Gom bằng chứng từ cú pháp, schema, scope, phép nối và thông tin lỗi khi chạy.
 """
 
 from enum import Enum
@@ -24,6 +24,7 @@ class FaultCategory(str, Enum):
     UNRESOLVED_ALIAS = "UNRESOLVED_ALIAS"
     MISSING_JOIN = "MISSING_JOIN"
     RUNTIME_ERROR = "RUNTIME_ERROR"
+    NO_SUCH_VALUE = "NO_SUCH_VALUE"  # giá trị lọc không có trong dữ liệu (VD '40' trong khi dữ liệu ghi '0040')
 
 
 class DiagnosedFault(BaseModel):
@@ -33,6 +34,14 @@ class DiagnosedFault(BaseModel):
     scope_index: Optional[int] = Field(
         default=None,
         description="Index of the SELECT (in ast.find_all(exp.Select) order) the fault belongs to, if known."
+    )
+    column_name: Optional[str] = Field(
+        default=None,
+        description="NO_SUCH_VALUE: tên cột (thật) đang bị lọc bằng giá trị không có trong dữ liệu."
+    )
+    literal_index: Optional[int] = Field(
+        default=None,
+        description="NO_SUCH_VALUE: vị trí của giá trị (literal) trong list(ast.find_all(exp.Literal))."
     )
     join_options: List[List[Dict[str, str]]] = Field(
         default_factory=list,
@@ -55,13 +64,13 @@ class DiagnosticReport(BaseModel):
 
 class DiagnosisEngine:
     """
-    Multi-layer diagnostic engine that checks:
-    1. Parse / Syntax validity (Gate A)
-    2. Schema presence of tables (Gate B)
-    3. Scope & alias resolution (Gate B)
-    4. Schema presence of columns & fuzzy column candidate matching (Gate B)
-    5. Join completeness & graph connectivity (Gate B)
-    6. Runtime sandbox feedback (Gate E)
+    Bộ chẩn đoán nhiều tầng, kiểm tra:
+    1. Cú pháp hợp lệ (Gate A)
+    2. Bảng có trong schema (Gate B)
+    3. Phân giải scope và tên tắt (Gate B)
+    4. Cột có trong schema và tìm cột gần giống (Gate B)
+    5. Đủ điều kiện nối và đồ thị liên thông (Gate B)
+    6. Thông tin lỗi khi chạy thử trong sandbox (Gate E)
     """
 
     def __init__(self, parser: Optional[SQLParser] = None, scope_analyzer: Optional[ScopeAnalyzer] = None):
@@ -79,7 +88,7 @@ class DiagnosisEngine:
         faults: List[DiagnosedFault] = []
         active_kg = kg or SchemaKnowledgeGraph(schema)
 
-        # Layer 1: Syntax & Parser Check
+        # Tầng 1: kiểm tra cú pháp
         ast, parse_err = self.parser.try_parse(sql, dialect=dialect)
         if ast is None:
             faults.append(
@@ -93,10 +102,10 @@ class DiagnosisEngine:
             )
             return DiagnosticReport(has_faults=True, faults=faults)
 
-        # Layer 2: Scope & Table Resolution
+        # Tầng 2: phân giải scope và bảng
         scope = self.scope_analyzer.analyze(ast, schema=schema, dialect=dialect)
 
-        # Check tables existence in schema
+        # Kiểm tra bảng có tồn tại trong schema không
         seen_bad_tables = set()
         for tbl_key, tbl_binding in scope.tables.items():
             if tbl_binding.is_cte or tbl_binding.is_subquery:
@@ -105,7 +114,7 @@ class DiagnosisEngine:
             phys_name = tbl_binding.table_name
             if not schema.has_table(phys_name) and phys_name.lower() not in seen_bad_tables:
                 seen_bad_tables.add(phys_name.lower())
-                # Closest schema table name; abstain (no suggestion) if two are equally close
+                # Tên bảng gần nhất trong schema; từ chối (không gợi ý) nếu có hai tên gần như nhau
                 best, ambiguous, ranked = name_match.pick(
                     phys_name, [(t.name, t.name) for t in schema.tables.values()]
                 )
@@ -123,25 +132,25 @@ class DiagnosisEngine:
                     )
                 )
 
-        # Layer 3: Column Resolution & Fuzzy Matching
+        # Tầng 3: phân giải cột và tìm tên gần giống
         own_names = defined_names(ast)
         for col_binding in scope.column_bindings:
             col_name = col_binding.column_name
             target_table = col_binding.resolved_table
 
-            # Skip wildcard '*'
+            # Bỏ qua dấu '*'
             if col_name == "*":
                 continue
-            # Skip names defined by the query itself (SELECT aliases, CTE / derived-table outputs)
+            # Bỏ qua tên do chính câu truy vấn đặt ra (tên tắt của SELECT, đầu ra của CTE / bảng con)
             if not target_table and is_query_defined_column(col_name, col_binding.qualifier, own_names):
                 continue
 
             if target_table:
-                # Table is resolved, verify column exists in table
+                # Đã biết bảng: kiểm tra cột có trong bảng không
                 tbl_meta = schema.get_table(target_table)
                 if tbl_meta and not tbl_meta.has_column(col_name):
-                    # Column does not exist in this table -> closest column of that table.
-                    # If two columns are equally close (e.g. A1 -> A10 / A11) give no suggestion -> ABSTAIN.
+                    # Bảng không có cột này -> lấy cột gần giống nhất của bảng đó.
+                    # Nếu hai cột gần như nhau (VD A1 -> A10 / A11) thì không gợi ý -> TỪ CHỐI.
                     best, ambiguous, ranked = name_match.pick(
                         col_name, [(c.name, c.name) for c in tbl_meta.columns.values()]
                     )
@@ -159,11 +168,11 @@ class DiagnosisEngine:
                         )
                     )
             else:
-                # Column could not be resolved to any table in scope.
-                # If a table name is itself wrong, the column is probably fine -> fix the table first.
+                # Không gán được cột cho bảng nào trong scope.
+                # Nếu chính tên bảng bị sai thì có lẽ cột vẫn đúng -> sửa bảng trước.
                 if seen_bad_tables:
                     continue
-                # Prefer columns of tables that the query actually uses; fall back to the whole schema.
+                # Ưu tiên cột của các bảng mà câu truy vấn đang dùng; không có thì tìm trên cả schema.
                 in_query = sorted({
                     b.table_name for b in scope.tables.values()
                     if not b.is_cte and not b.is_subquery and schema.has_table(b.table_name)
@@ -185,14 +194,14 @@ class DiagnosisEngine:
                     )
                 )
 
-        # Layer 4: Join Completeness Check (per SELECT, see vasp_sql/ast/joins.py)
+        # Tầng 4: kiểm tra đủ điều kiện nối bảng (theo từng SELECT, xem vasp_sql/ast/joins.py)
         for sel_idx, comps in find_disconnected_selects(ast, schema):
-            # comps[0] holds the base FROM table; connect every other component to it.
-            # When the schema offers several equally short ways to connect (e.g. two FKs
-            # between the same tables), every way is kept as an option: the pipeline then
-            # runs all of them and only accepts the repair if they return the same rows.
+            # comps[0] chứa bảng gốc của FROM; nối mọi nhóm còn lại vào nó.
+            # Khi schema có nhiều cách nối ngắn như nhau (VD hai khóa ngoại
+            # giữa cùng hai bảng), mọi cách đều được giữ làm phương án: pipeline sẽ
+            # chạy thử tất cả và chỉ chấp nhận khi chúng cho cùng kết quả.
             connected = {t for _, t in comps[0] if t}
-            per_component = []  # list of option lists, one per disconnected component
+            per_component = []  # danh sách các phương án, mỗi nhóm bị tách rời một danh sách
             for comp in comps[1:]:
                 options = []
                 for a in sorted(connected):
@@ -200,7 +209,7 @@ class DiagnosisEngine:
                         options.extend(active_kg.all_shortest_join_paths(a, b))
                 if not options:
                     per_component = []
-                    break  # no FK path -> cannot ground a join
+                    break  # không có đường khóa ngoại -> không có căn cứ để nối
                 shortest = min(len(p) for p in options)
                 uniq, seen = [], set()
                 for p in options:
@@ -232,14 +241,14 @@ class DiagnosisEngine:
                 )
             )
 
-        # Layer 5: Sandbox Execution Feedback Integration
+        # Tầng 5: dùng thông tin lỗi khi chạy thử trong sandbox
         if execution_feedback and not execution_feedback.is_success:
             err_type = execution_feedback.error_type
             err_msg = execution_feedback.error_message or ""
 
-            # Check if this runtime error wasn't already diagnosed
+            # Kiểm tra lỗi khi chạy này đã được chẩn đoán chưa
             if not any(f.fault_type == FaultCategory.NO_SUCH_COLUMN for f in faults) and "no such column" in err_msg.lower():
-                # Extract column name from error message (e.g., "no such column: schools.nam")
+                # Lấy tên cột từ thông báo lỗi (VD "no such column: schools.nam")
                 col_part = err_msg.split(":")[-1].strip()
                 faults.append(
                     DiagnosedFault(

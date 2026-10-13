@@ -1,5 +1,5 @@
 """
-Adapter for G2 - MAC-SQL (Multi-Agent Text-to-SQL framework).
+Adapter cho G2 - MAC-SQL (framework Text-to-SQL nhiều agent).
 """
 
 from typing import Any, Dict, Optional
@@ -12,8 +12,8 @@ from vasp_sql.core.feedback import ExecutionFeedback
 
 class MacSqlAdapter(BaseGeneratorAdapter):
     """
-    Adapter for MAC-SQL multi-agent system outputs.
-    Extracts multi-agent metadata (decomposition sub-goals, schema filtering, refinement logs).
+    Adapter cho đầu ra của hệ nhiều agent MAC-SQL.
+    Lấy siêu dữ liệu của các agent (bài toán con, lọc schema, nhật ký tinh chỉnh).
     """
 
     def __init__(self, generator_name: str = "mac_sql"):
@@ -31,7 +31,7 @@ class MacSqlAdapter(BaseGeneratorAdapter):
             raw_text = ""
 
             if isinstance(raw_output, dict):
-                # MAC-SQL typical JSON keys
+                # Các khoá JSON thường gặp của MAC-SQL
                 candidate_sql = (
                     raw_output.get("final_sql")
                     or raw_output.get("pred_sql")
@@ -40,7 +40,7 @@ class MacSqlAdapter(BaseGeneratorAdapter):
                 )
                 raw_text = str(candidate_sql or raw_output)
 
-                # Capture multi-agent decomposition and schema refinement steps
+                # Lưu các bước chia nhỏ bài toán và lọc schema của hệ nhiều agent
                 if "sub_goals" in raw_output:
                     extracted_meta["sub_goals"] = raw_output["sub_goals"]
                 if "sub_problems" in raw_output:

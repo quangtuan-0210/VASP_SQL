@@ -1,5 +1,5 @@
 """
-SQL Parser and AST Serializer using sqlglot.
+Phân tích cú pháp SQL và chuyển AST ngược lại thành SQL, dùng sqlglot.
 """
 
 from typing import Optional, Tuple
@@ -12,8 +12,8 @@ from vasp_sql.core.feedback import ParserFeedback
 
 class SQLParser:
     """
-    Parser for SQL statements to AST and serializer from AST to SQL.
-    Default dialect is SQLite for BIRD benchmark compatibility.
+    Chuyển câu SQL thành AST và chuyển AST ngược lại thành SQL.
+    Dialect mặc định là SQLite để tương thích với benchmark BIRD.
     """
 
     def __init__(self, default_dialect: str = "sqlite"):
@@ -21,8 +21,8 @@ class SQLParser:
 
     def parse(self, sql: str, dialect: Optional[str] = None) -> exp.Expression:
         """
-        Parse SQL query into a sqlglot Expression AST.
-        Raises ParseError if syntax is invalid.
+        Phân tích câu SQL thành AST (Expression của sqlglot).
+        Báo lỗi ParseError nếu sai cú pháp.
         """
         active_dialect = dialect or self.default_dialect
         statements = sqlglot.parse(sql, read=active_dialect)
@@ -32,8 +32,8 @@ class SQLParser:
 
     def try_parse(self, sql: str, dialect: Optional[str] = None) -> Tuple[Optional[exp.Expression], Optional[str]]:
         """
-        Safely try to parse SQL query without throwing exceptions.
-        Returns (ast, None) on success or (None, error_message) on failure.
+        Thử phân tích câu SQL mà không ném lỗi.
+        Trả về (ast, None) nếu thành công, hoặc (None, thông báo lỗi) nếu thất bại.
         """
         try:
             tree = self.parse(sql, dialect)
@@ -43,7 +43,7 @@ class SQLParser:
 
     def validate_syntax(self, sql: str, dialect: Optional[str] = None) -> ParserFeedback:
         """
-        Gate A: Check whether the query conforms to valid dialect syntax.
+        Gate A: kiểm tra câu truy vấn có đúng cú pháp của dialect không.
         """
         active_dialect = dialect or self.default_dialect
         try:
@@ -69,7 +69,7 @@ class SQLParser:
         pretty: bool = False
     ) -> str:
         """
-        Serialize sqlglot AST back to clean SQL string.
+        Chuyển AST của sqlglot ngược lại thành chuỗi SQL gọn gàng.
         """
         active_dialect = dialect or self.default_dialect
         return ast.sql(dialect=active_dialect, pretty=pretty).strip()
@@ -77,8 +77,8 @@ class SQLParser:
     @staticmethod
     def calculate_ast_edit_size(original_ast: exp.Expression, repaired_ast: exp.Expression) -> int:
         """
-        Calculate the AST edit distance / number of differing nodes between original and repaired ASTs.
-        Used to measure AST locality (ensuring minimum changes).
+        Tính khoảng cách sửa trên AST / số nút khác nhau giữa AST gốc và AST đã sửa.
+        Dùng để đo tính cục bộ của bản sửa (sửa càng ít càng tốt).
         """
         orig_nodes = list(original_ast.walk())
         rep_nodes = list(repaired_ast.walk())
@@ -86,12 +86,36 @@ class SQLParser:
         orig_reprs = [type(n).__name__ + ":" + str(n.key) for n in orig_nodes]
         rep_reprs = [type(n).__name__ + ":" + str(n.key) for n in rep_nodes]
 
-        # Simple multiset symmetric difference to count structural changes
+        # Hiệu đối xứng của hai tập (đa tập) để đếm số thay đổi cấu trúc
         from collections import Counter
         c_orig = Counter(orig_reprs)
         c_rep = Counter(rep_reprs)
 
         diff = (c_orig - c_rep) + (c_rep - c_orig)
         return sum(diff.values())
+
+    @staticmethod
+    def calculate_ast_nodes_changed(original_ast: exp.Expression, repaired_ast: exp.Expression) -> int:
+        """
+        Chỉ số BÁO CÁO tính cục bộ (mục 5.7): số nút AST bị thay / thêm / bớt.
+
+        Khác calculate_ast_edit_size (chỉ so loại nút nên đổi tên cột a -> b bị tính 0), ở đây mỗi
+        nút được nhận diện bằng loại + nội dung lá (tên định danh, giá trị hằng). Kết quả =
+        max(số nút chỉ có ở bản gốc, số nút chỉ có ở bản sửa): thay 1 tên = 1, thêm điều kiện
+        nối "a.x = b.y" = số nút của điều kiện đó.
+        Lưu ý: KHÔNG dùng cho ngân sách sửa (planner vẫn dùng calculate_ast_edit_size như khi đóng băng).
+        """
+        from collections import Counter
+
+        def sig(n):
+            if isinstance(n, exp.Identifier):
+                return "Identifier:" + str(n.name).lower()
+            if isinstance(n, exp.Literal):
+                return "Literal:" + str(n.this)
+            return type(n).__name__
+
+        c_orig = Counter(sig(n) for n in original_ast.walk())
+        c_rep = Counter(sig(n) for n in repaired_ast.walk())
+        return max(sum((c_orig - c_rep).values()), sum((c_rep - c_orig).values()))
 
     

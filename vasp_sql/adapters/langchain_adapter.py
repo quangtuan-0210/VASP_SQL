@@ -1,5 +1,5 @@
 """
-Adapter for G3 - LangChain SQL Agent (Tool-using ReAct/Plan-and-Solve Agent).
+Adapter cho G3 - LangChain SQL Agent (agent dùng công cụ kiểu ReAct / Plan-and-Solve).
 """
 
 from typing import Any, Dict, Optional
@@ -12,8 +12,8 @@ from vasp_sql.core.feedback import ExecutionFeedback
 
 class LangChainAdapter(BaseGeneratorAdapter):
     """
-    Adapter for LangChain SQL Agents using tool-assisted reasoning.
-    Extracts intermediate tool steps, execution observations, and final query.
+    Adapter cho LangChain SQL Agent có suy luận bằng công cụ.
+    Lấy các bước gọi công cụ, kết quả quan sát và câu truy vấn cuối.
     """
 
     def __init__(self, generator_name: str = "langchain_sql_agent"):
@@ -32,11 +32,11 @@ class LangChainAdapter(BaseGeneratorAdapter):
             raw_text = ""
 
             if isinstance(raw_output, dict):
-                # Standard LangChain agent dict response: {"output": ..., "intermediate_steps": ...}
+                # Kết quả dạng dict chuẩn của LangChain agent: {"output": ..., "intermediate_steps": ...}
                 output_str = raw_output.get("output", "")
                 raw_text = str(output_str)
 
-                # Check intermediate steps for SQL queries executed by tools
+                # Xem các bước trung gian để tìm câu SQL mà công cụ đã chạy
                 intermediate_steps = raw_output.get("intermediate_steps", [])
                 extracted_meta["intermediate_step_count"] = len(intermediate_steps)
 
@@ -52,10 +52,10 @@ class LangChainAdapter(BaseGeneratorAdapter):
 
                 extracted_meta["tool_executed_queries_count"] = len(tool_queries)
 
-                # Priority 1: SQL inside output string
+                # Ưu tiên 1: SQL nằm trong chuỗi output
                 candidate_sql = extract_and_clean_sql(output_str)
 
-                # Priority 2: If output text doesn't contain a clear SELECT statement, check last tool query
+                # Ưu tiên 2: nếu output không có câu SELECT rõ ràng, lấy truy vấn ở lần gọi công cụ cuối
                 if not candidate_sql and tool_queries:
                     candidate_sql = extract_and_clean_sql(tool_queries[-1])
             else:
