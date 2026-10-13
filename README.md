@@ -16,16 +16,6 @@ theo kế hoạch `VASP-SQL_Plan.docx`.
    chỉ-đọc · F ý định câu hỏi (LLM chỉ chấm phần vừa sửa).
 5. **Đồ thị schema (khóa ngoại)** để tìm cách nối bảng; so tên gần đúng bằng khoảng cách chỉnh sửa (không dùng embedding).
 
-## Kết quả hiện có (không phụ thuộc mô hình LLM)
-
-| Thí nghiệm | Kết quả |
-|---|---|
-| SQL đúng (gold) của tập report, 1234 câu | 1232 giữ nguyên, 1 sửa (q646 — lỗi sẵn của gold), 1 từ chối (quá thời gian) |
-| Lỗi nhân tạo mới (seed 2027, chỉ câu report), 900 câu | Sửa đúng **92,2%**, sửa sai 0,4%; cột 96,7% · bảng 100% · thiếu JOIN 80,0%; trung bình 2,8 nút AST thay đổi |
-| Cùng bộ đó, cấu hình **AST-only** (không đồ thị schema, không sửa giá trị) | 65,6% — thiếu JOIN **0%** → đồ thị schema đóng góp rõ |
-
-Kết quả trên SQL do 3 AI sinh (G1 / G2 / G3) cùng các đối chứng: chạy `scripts/stats_report.py` sau khi chạy xong các cấu hình.
-
 ---
 
 ## Cấu trúc thư mục

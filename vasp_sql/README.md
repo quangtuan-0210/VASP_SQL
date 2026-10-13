@@ -16,7 +16,7 @@ vasp_sql/
 ├── diagnosis/      # Động cơ chẩn đoán lỗi 5 tầng và lỗi giá trị lọc
 ├── repair/         # Bộ lập kế hoạch bản vá AST, các thao tác vá và sửa ngữ nghĩa
 ├── verifiers/      # Hệ thống 6 cổng kiểm chứng (Gate A → Gate F)
-├── llm/            # Client kết nối LLM với cơ chế cache đĩa tái lập 100%
+├── llm/            # Client kết nối LLM với bộ nhớ đệm trên đĩa (chạy lại không tốn thêm lượt gọi)
 ├── generators/     # Triển khai 3 phương pháp AI sinh SQL (G1, G2, G3)
 ├── pipeline.py     # Hàm repair() tích hợp toàn bộ quy trình đầu cuối
 └── __init__.py     # Điểm xuất khẩu chính (xuất khẩu hàm repair)

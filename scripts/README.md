@@ -18,7 +18,7 @@ Thư mục này chứa toàn bộ các kịch bản thực thi đánh giá bench
 ---
 
 ### 2. `run_generator.py` — Chạy các AI Sinh SQL
-* **Nhiệm vụ:** Chạy một trong 3 AI sinh SQL (`g1`, `g2`, `g3`) trên tập `tune` hoặc `report` và lưu kết quả chuẩn hóa vào `results/generators/<ai>/<split>/`.
+* **Nhiệm vụ:** Chạy một trong 3 AI sinh SQL (`g1`, `g2`, `g3`) trên tập `tune` hoặc `report` và lưu đầu ra đã chuẩn hóa (chọn thư mục bằng `--out`).
 * **Cách chạy:**
   ```powershell
   py scripts/run_generator.py --generator g1 --split tune
@@ -39,7 +39,7 @@ Thư mục này chứa toàn bộ các kịch bản thực thi đánh giá bench
 * **Nhiệm vụ:** Thử nghiệm trên 900 câu bị tiêm lỗi có kiểm soát (300 câu gõ sai cột, 300 câu gõ sai bảng, 300 câu thiếu JOIN). Đo lường tỷ lệ sửa đúng, tỷ lệ từ chối (`ABSTAIN`) và tỷ lệ sửa sai.
 * **Cách chạy:**
   ```powershell
-  py scripts/eval_corrupted.py --split report --seed 2027 --gold-results results/report/gold_eval/per_sample.jsonl --out results/report/corrupted_eval
+  py scripts/eval_corrupted.py --split report --seed 2027 --gold-results <thư mục kết quả gold>/per_sample.jsonl --out <thư mục kết quả>
   py scripts/eval_corrupted.py ... --ast-only   # đối chứng AST-only
   py scripts/eval_corrupted.py ... --llm        # kèm Gate F bằng LLM
   ```
