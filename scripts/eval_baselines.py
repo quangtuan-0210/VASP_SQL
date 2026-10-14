@@ -117,7 +117,7 @@ def main():
                 c.begin_sample()
         prompt = PROMPT.format(schema=schema_ddl(db_path), question=s.question, evidence=s.evidence or "(none)",
                                sql=pred, exec_info=exec_info(feed) if args.mode != "rewrite" else "")
-        text = llm.chat([{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}], max_tokens=800)
+        text = llm.chat([{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}], max_tokens=2000)
         rec["llm_calls"] = 1
         new = extract_and_clean_sql(text)
         final = pred

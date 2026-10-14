@@ -27,6 +27,9 @@ from vasp_sql.adapters.mac_sql_adapter import MacSqlAdapter
 from vasp_sql.adapters.models import EvaluationSample, GeneratorOutput
 from vasp_sql.core.env import PROJECT_ROOT
 
+# Giới hạn token mỗi lượt gọi của MAC-SQL. 1500 đủ cho Qwen3-235B nhưng mô hình viết dài (VD qwen38-27b)
+# bị cắt trước khi kịp viết khối ```sql -> "No SQL found". Đổi bằng biến VT_MACSQL_MAX_TOKENS.
+MACSQL_MAX_TOKENS = int(os.environ.get("VT_MACSQL_MAX_TOKENS", "4000"))
 MACSQL_DIR = os.environ.get("VT_MACSQL_DIR", str(PROJECT_ROOT / "third_party" / "MAC-SQL"))
 
 _local = threading.local()      # mỗi luồng: một ChatManager + bộ đếm riêng
@@ -47,7 +50,7 @@ def _install_api_shim(client):
         api = types.ModuleType("core.api")
 
         def safe_call_llm(input_prompt, **kwargs):
-            rec = _client_holder["client"].chat_full([{"role": "user", "content": input_prompt}], max_tokens=1500)
+            rec = _client_holder["client"].chat_full([{"role": "user", "content": input_prompt}], max_tokens=MACSQL_MAX_TOKENS)
             stats = getattr(_local, "stats", None)
             if stats is not None:
                 usage = rec.get("usage") or {}

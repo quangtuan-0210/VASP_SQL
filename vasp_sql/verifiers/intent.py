@@ -101,7 +101,7 @@ class IntentVerifier:
         )
         self.calls += 1
         text = self.llm.chat([{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
-                             max_tokens=250)
+                             max_tokens=800)
         data = _parse_json(text)
         # Chỉ "change_correct" quyết định; "other_issues" là cảnh báo về phần ngoài vùng sửa
         # (thường là lỗi sẵn có của câu gốc — lớp sửa lỗi không được phép đụng vào).
@@ -128,7 +128,7 @@ class IntentVerifier:
         )
         self.calls += 1
         text = self.llm.chat([{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
-                             max_tokens=200)
+                             max_tokens=600)
         data = _parse_json(text)
         try:
             k = int(data.get("option", 0))

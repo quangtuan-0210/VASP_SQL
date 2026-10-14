@@ -43,7 +43,7 @@ class ProxyLLM(LLM):
     """Bọc LLMClient của project thành LLM của LangChain (chỉ văn bản, có hỗ trợ chuỗi dừng)."""
 
     client: Any
-    max_tokens: int = 800
+    max_tokens: int = 2000  # trần mỗi bước; mô hình viết dài (qwen38-27b) bị cắt ở 800
     calls: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
