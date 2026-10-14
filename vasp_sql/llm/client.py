@@ -47,7 +47,7 @@ class LLMClient:
         self.base_url = (base_url or os.environ.get("VT_BASE_URL", "")).rstrip("/")
         self.api_key = api_key or os.environ.get("VT_API_KEY", "")
         self.model = model or os.environ.get("VT_MODEL_LLM", "deepseek-v4-pro")
-        self.timeout = timeout
+        self.timeout = float(os.environ.get("VT_LLM_TIMEOUT", timeout))  # server chậm khi tải nặng -> cho chờ lâu hơn
         self.max_retries = max_retries
         self.temperature = temperature  # 0 = trả lời ổn định, dễ tái lập
         self.reasoning_effort = os.environ.get("VT_REASONING_EFFORT", "").strip().lower() or None
