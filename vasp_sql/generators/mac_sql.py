@@ -121,6 +121,40 @@ def _install_dbinfo_cache():
     Selector._vasp_cached = True
 
 
+def _install_exec_cache():
+    """
+    Chỉ để chạy được theo từng đoạn ngắn, KHÔNG đổi kết quả: lưu kết quả chạy SQL của bước Refiner
+    (SQLite chỉ đọc nên cùng câu SQL luôn ra cùng kết quả) ra đĩa (~/.macsql_exec/). Lần chạy lại
+    không phải chạy lại câu SQL chậm. Lỗi quá thời gian (FunctionTimedOut) không được lưu.
+    """
+    import hashlib, pickle
+    from core.agents import Refiner
+    if getattr(Refiner, "_vasp_exec_cached", False):
+        return
+    original = Refiner._execute_sql
+    cache_dir = os.path.join(os.path.expanduser("~"), ".macsql_exec")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    def cached(self, sql, db_id):
+        key = hashlib.sha256(f"{db_id}\n{sql}".encode("utf-8", "ignore")).hexdigest()
+        path = os.path.join(cache_dir, key + ".pkl")
+        if os.path.exists(path):
+            try:
+                with open(path, "rb") as f:
+                    return pickle.load(f)
+            except Exception:
+                pass
+        res = original(self, sql, db_id)
+        tmp = path + f".{os.getpid()}.{threading.get_ident()}.tmp"
+        with open(tmp, "wb") as f:
+            pickle.dump(res, f)
+        os.replace(tmp, path)
+        return res
+
+    Refiner._execute_sql = cached
+    Refiner._vasp_exec_cached = True
+
+
 class MacSqlGenerator:
     name = "g2_mac_sql"
 
@@ -136,6 +170,7 @@ class MacSqlGenerator:
         if not hasattr(_local, "manager"):
             from core.chat_manager import ChatManager  # import sau khi đã cắm core.api
             _install_dbinfo_cache()
+            _install_exec_cache()
             _local.manager = ChatManager(
                 data_path=os.path.relpath(self.databases_dir),   # xem ghi chú đầu file về strip('/')
                 tables_json_path=self.tables_json_path,
