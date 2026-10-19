@@ -44,6 +44,12 @@ class RepairPolicy(BaseModel):
         description="Hướng 2 (cần llm): với câu đã qua Gate A–E, LLM đề xuất tối đa 2 thao tác sửa cục bộ, "
                     "hệ thống áp lên AST, kiểm lại A–E, rồi một lượt LLM độc lập chọn giữa câu gốc và câu sửa."
     )
+    allow_projection_repair: bool = Field(
+        default=False,
+        description="Bản vá bỏ cột thừa (cần llm): câu chạy được mà SELECT trả thêm cột câu hỏi không hỏi -> "
+                    "LLM chọn giữ cột nào (không viết SQL), hệ thống bớt cột trên AST và kiểm chứng lại "
+                    "(qua Gate A–E, số dòng giữ nguyên)."
+    )
     use_schema_graph: bool = Field(
         default=True,
         description="Dùng đồ thị schema (khóa ngoại) để tìm cách nối bảng khi thiếu JOIN. "

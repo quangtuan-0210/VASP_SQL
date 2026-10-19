@@ -15,6 +15,7 @@ from vasp_sql.diagnosis.engine import DiagnosisEngine, DiagnosticReport
 from vasp_sql.diagnosis.engine import FaultCategory
 from vasp_sql.diagnosis.values import find_value_faults
 from vasp_sql.repair.planner import RepairPlanner
+from vasp_sql.repair.projection import ProjectionSelector, output_columns, prune_projection, top_select
 from vasp_sql.repair.semantic import SemanticRepairer, _norm as _norm_sql, apply_edits
 from vasp_sql.core.result import ASTPatchRecord
 from vasp_sql.sandbox.executor import SQLiteSandboxExecutor
@@ -76,6 +77,64 @@ def _semantic_attempt(sem, question, evidence, schema, sql, original_ast, orig_f
     )
 
 
+def _projection_attempt(selector, question, evidence, schema, sql, original_ast, orig_feed, verifiers,
+                        sandbox, parser, dialect, start_time):
+    """
+    Bản vá bỏ cột thừa cho câu đã qua Gate A–E và có kết quả. Trả về RepairResult (REPAIRED) hoặc None.
+    LLM chỉ chọn giữ cột nào; hệ thống tự bớt cột trên AST rồi kiểm chứng lại.
+    """
+    exprs = output_columns(original_ast)
+    if not exprs or not (orig_feed.row_count or 0) > 0:
+        return None
+    sample = (orig_feed.result_preview or [None])[0]
+    keep, why = selector.select(question, evidence, schema, sql, exprs, sample)
+    if keep is None:
+        return None
+    new_ast = prune_projection(original_ast, keep)
+    if new_ast is None:
+        return None
+    new_sql = parser.to_sql(new_ast, dialect=dialect)
+    gates = [verifiers.verify_gate_a_syntax(new_sql, dialect=dialect)]
+    if gates[-1].passed:
+        for g in (verifiers.verify_gate_b_schema(new_ast, schema, dialect=dialect),
+                  verifiers.verify_gate_c_type(new_ast, schema),
+                  verifiers.verify_gate_d_safety(new_sql, sandbox)):
+            gates.append(g)
+            if not g.passed:
+                break
+    if not all(g.passed for g in gates):
+        selector.log.append({"type": "projection_gates_failed", "gate": gates[-1].gate.value})
+        return None
+    g_e, new_feed = verifiers.verify_gate_e_execution(new_sql, sandbox)
+    if not g_e.passed:
+        selector.log.append({"type": "projection_gates_failed", "gate": "GATE_E_EXECUTION"})
+        return None
+    # Bớt cột không được làm đổi các dòng: số dòng phải giữ nguyên (câu có DISTINCT được phép ít hơn)
+    sel = top_select(original_ast)
+    has_distinct = sel is not None and sel.args.get("distinct") is not None
+    if (new_feed.row_count or 0) == 0 or (not has_distinct and new_feed.row_count != orig_feed.row_count):
+        selector.log.append({"type": "projection_rows_changed", "before": orig_feed.row_count,
+                             "after": new_feed.row_count})
+        return None
+    dropped = [e.sql(dialect=dialect) for i, e in enumerate(exprs) if i not in keep]
+    elapsed_ms = (time.perf_counter() - start_time) * 1000.0
+    return RepairResult(
+        status=RepairStatus.REPAIRED,
+        final_sql=new_sql,
+        original_sql=sql,
+        patches_applied=[ASTPatchRecord(patch_type="DropSelectColumn", original_fragment=", ".join(dropped)[:300],
+                                        replacement_fragment="(removed)",
+                                        reason="Output columns not requested by the question",
+                                        evidence=f"LLM selection of requested columns: {why}"[:300])],
+        gate_results=gates + [g_e, GateResult(gate=GateType.GATE_F_INTENT, passed=True, confidence=0.8,
+                                              message=f"Kept columns {[k + 1 for k in keep]} of {len(exprs)}: {why}")],
+        confidence=0.8,
+        metrics={"latency_ms": round(elapsed_ms, 2), "llm_calls": selector.calls, "intent_log": selector.log,
+                 "ast_edit_size": parser.calculate_ast_edit_size(original_ast, new_ast),
+                 "ast_nodes_changed": parser.calculate_ast_nodes_changed(original_ast, new_ast)},
+    )
+
+
 def repair(
     question: str,
     sql: str,
@@ -118,10 +177,18 @@ def repair(
     intent_log = []  # ghi lại các lần LLM phán xét (để báo cáo / phân tích lỗi)
     # Hướng 2: sửa lỗi ý nghĩa cục bộ (chỉ khi có llm và policy bật)
     semantic = SemanticRepairer(llm, judge_llm) if (llm is not None and active_policy.allow_semantic_repair) else None
+    # Bản vá bỏ cột thừa (cần llm để chọn cột cần giữ)
+    projection = ProjectionSelector(llm) if (llm is not None and active_policy.allow_projection_repair) else None
     orig_feed = None  # kết quả chạy câu gốc (để LLM xem khi đề xuất / so sánh)
 
     def finish_unchanged():
-        """Câu gốc hợp lệ: thử hướng 2 (nếu bật); không sửa được thì giữ nguyên câu."""
+        """Câu gốc hợp lệ: thử bỏ cột thừa / hướng 2 (nếu bật); không sửa được thì giữ nguyên câu."""
+        if projection is not None and original_ast is not None and orig_feed is not None:
+            res = _projection_attempt(projection, question, evidence, schema, sql, original_ast, orig_feed,
+                                      verifiers, sandbox, parser, dialect, start_time)
+            if res is not None:
+                return res
+            unchanged_result.metrics.update({"llm_calls": projection.calls, "intent_log": projection.log})
         if semantic is not None and original_ast is not None and orig_feed is not None:
             res = _semantic_attempt(semantic, question, evidence, schema, sql, original_ast, orig_feed,
                                     verifiers, sandbox, parser, dialect, llm_budget, start_time,

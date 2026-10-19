@@ -58,6 +58,8 @@ def main():
                     help="đối chứng AST-only (mục 5.6): không đồ thị schema, không sửa giá trị, không LLM")
     ap.add_argument("--no-value-repair", action="store_true", help="ablation: tắt sửa giá trị lọc")
     ap.add_argument("--no-schema-graph", action="store_true", help="ablation: tắt đồ thị schema (sửa thiếu JOIN)")
+    ap.add_argument("--projection", action="store_true",
+                    help="bật bản vá bỏ cột thừa (LLM chọn cột cần giữ; ngầm bật --llm). Kết quả ở eval_llm_proj")
     ap.add_argument("--workers", type=int, default=1, help="số câu chấm song song")
     ap.add_argument("--judge-model", default=None,
                     help="mô hình giám khảo của hướng 2 (mặc định VT_MODEL_JUDGE trong .env, hoặc gpt-oss-120b)")
@@ -68,8 +70,10 @@ def main():
 
     base = os.path.join("results", "generators", args.gen, args.split)
     outputs = load_jsonl(os.path.join(base, "outputs.jsonl"))
-    if args.semantic:
+    if args.semantic or args.projection:
         args.llm = True
+    if args.projection:
+        args.tag = "_proj" + args.tag
     if args.ast_only and (args.llm or args.semantic):
         raise SystemExit("--ast-only không dùng cùng --llm/--semantic")
     if args.no_value_repair:
@@ -92,7 +96,7 @@ def main():
         judge = LLMClient(model=args.judge_model or os.environ.get("VT_MODEL_JUDGE", "gpt-oss-120b"))
         print(f"Hướng 2: đề xuất = {llm.model}, giám khảo = {judge.model}")
 
-    policy = RepairPolicy(allow_semantic_repair=bool(args.semantic))
+    policy = RepairPolicy(allow_semantic_repair=bool(args.semantic), allow_projection_repair=bool(args.projection))
     if args.ast_only:
         policy = RepairPolicy(use_schema_graph=False, allow_value_repair=False)
     if args.no_value_repair or args.no_schema_graph:

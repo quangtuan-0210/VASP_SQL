@@ -21,6 +21,7 @@ from eval_common import GateProbe, available_samples, ex_match, run_sql_full
 
 from vasp_sql.adapters.bird_loader import BirdDatasetLoader
 from vasp_sql.pipeline import repair
+from vasp_sql.core.policy import RepairPolicy
 
 
 def main():
@@ -33,10 +34,14 @@ def main():
     ap.add_argument("--out", default="results/gold_eval")
     ap.add_argument("--llm", action="store_true",
                     help="bật Gate F bằng LLM (đọc cấu hình server từ .env); câu trả lời được lưu đệm ở results/llm_cache.jsonl")
+    ap.add_argument("--projection", action="store_true",
+                    help="bật bản vá bỏ cột thừa (ngầm bật --llm): kiểm tra bản vá có bỏ nhầm cột của SQL đúng không")
     ap.add_argument("--resume", action="store_true", help="continue an interrupted run (skip samples already in per_sample.jsonl)")
     ap.add_argument("--max-seconds", type=float, default=None, help="stop after this many seconds (use with --resume to run in chunks)")
     args = ap.parse_args()
 
+    if args.projection:
+        args.llm = True
     loader = BirdDatasetLoader(args.config)
     llm = None
     if args.llm:
@@ -85,7 +90,8 @@ def main():
 
             try:
                 res = repair(question=s.question, sql=s.golden_sql, schema=schema,
-                             db_path=db_path, evidence=s.evidence, llm=llm)
+                             db_path=db_path, evidence=s.evidence, llm=llm,
+                             policy=RepairPolicy(allow_projection_repair=bool(args.projection)))
                 gate, gate_msg = (None, None)
                 if res.status.value != "UNCHANGED":
                     gate, gate_msg = probe.first_failing_gate(s.question, s.golden_sql, schema, db_path, s.evidence)
