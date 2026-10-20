@@ -8,8 +8,6 @@ Với mỗi AI sinh SQL (G1/G2/G3) và mỗi cấu hình (mục 5.6 + ablation):
   2. Theo độ khó và theo database
   3. Theo loại lỗi: câu sai ban đầu bị chặn ở cổng nào; mỗi loại bản vá (đổi cột / bảng / thêm JOIN /
      sửa giá trị) sửa bao nhiêu câu, đúng bao nhiêu, làm hỏng bao nhiêu, số nút AST thay đổi trung bình
-  4. Chi phí & độ trễ: token và thời gian của bước sinh SQL và bước sửa (tính cả lượt lấy từ bộ nhớ đệm,
-     tức chi phí khi chạy lần đầu); ước tính USD nếu cho giá (--price-in/--price-out, USD / 1 triệu token)
 
 Phần dữ liệu: --split report (mặc định). Bảng chính gồm các cấu hình trình bày trong báo cáo
 (Execution-feedback, VASP-SQL + bỏ cột thừa, kết hợp có chốt an toàn); các cấu hình khác in gọn ở phần phụ lục.
@@ -194,20 +192,9 @@ def analyse(g, gname, splits, rng, price_in, price_out, methods=METHODS, detail=
     if asts:
         L += ["", "**Tính cục bộ** — số nút AST thay đổi trung bình (câu được sửa): " +
               "; ".join(f"{a}: {b}" for a, b in asts)]
-    L += ["", "**Chi phí & độ trễ trung bình mỗi câu** (tính cả lượt lấy từ bộ nhớ đệm)", "",
-          "| Bước | Lượt gọi LLM | Token vào | Token ra | Thời gian | Ước tính USD / 1000 câu |", "|---|---:|---:|---:|---:|---:|"]
-
-    def usd(c):
-        if price_in is None or c.get("prompt") is None:
-            return "—"
-        return f"{1000 * ((c['prompt'] or 0) * price_in + (c['completion'] or 0) * (price_out or 0)) / 1e6:.2f}"
-    L.append(f"| Sinh SQL | {gen_cost['calls']} | {gen_cost['prompt']} | {gen_cost['completion']} | {gen_cost['latency_s']} s | {usd(gen_cost)} |")
-    for name, c in costs:
-        L.append(f"| Sửa: {name} | {c['calls']} | {c['prompt'] if c['prompt'] is not None else '—'} | "
-                 f"{c['completion'] if c['completion'] is not None else '—'} | {c['latency_ms']} ms | {usd(c)} |")
     L.append("")
     return {"rows": rows, "per_db": per_db, "per_difficulty": per_diff, "why_wrong": dict(why),
-            "patch_tables": patch_tables, "gen_cost": gen_cost, "repair_costs": dict(costs)}, L
+            "patch_tables": patch_tables}, L
 
 
 def main():
