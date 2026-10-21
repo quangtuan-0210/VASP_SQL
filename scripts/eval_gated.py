@@ -69,25 +69,32 @@ def main():
     ap.add_argument("--gen", required=True)
     ap.add_argument("--split", default="report")
     ap.add_argument("--config", default="configs/bird_config.yaml")
+    ap.add_argument("--execfb-dir", default="baseline_execfb", help="thư mục kết quả Execution-feedback dùng ở bước 2")
+    ap.add_argument("--out-dir", default="gated_execfb")
+    ap.add_argument("--dump-sent", default=None, help="ghi danh sách sample_id được gửi sang Execution-feedback ra file JSON")
     args = ap.parse_args()
 
     base = os.path.join("results", "generators", args.gen, args.split)
     vasp = load(os.path.join(base, "eval_llm_proj", "per_sample.jsonl"))
-    efb = load(os.path.join(base, "baseline_execfb", "per_sample.jsonl"))
+    efb_path = os.path.join(base, args.execfb_dir, "per_sample.jsonl")
+    efb = load(efb_path) if os.path.exists(efb_path) else {}
     loader = BirdDatasetLoader(args.config)
-    out_dir = os.path.join(base, "gated_execfb")
+    out_dir = os.path.join(base, args.out_dir)
     os.makedirs(out_dir, exist_ok=True)
 
-    recs = []
+    recs, sent, missing = [], [], 0
     for sid, v in vasp.items():
         e = efb.get(sid)
-        if e is None:
-            continue
         if v.get("status") == "REPAIRED":
             source, sig = "vasp", set()
         else:
             sig = signals_of(v, loader.get_db_path(v["db_id"]))
             source = "execfb" if sig else "goc"
+        if source == "execfb":
+            sent.append(sid)
+            if e is None:  # chưa chạy Execution-feedback cho câu này
+                missing += 1
+                continue
         ex_after = v["ex_after"] if source == "vasp" else (e["ex_after"] if source == "execfb" else v["ex_before"])
         final_sql = v["final_sql"] if source == "vasp" else (e.get("final_sql") if source == "execfb" else v.get("generated_sql"))
         recs.append({"sample_id": sid, "db_id": v["db_id"], "difficulty": v.get("difficulty"),
@@ -95,6 +102,12 @@ def main():
                      "signals": sorted(sig), "final_sql": final_sql,
                      "changed": (final_sql or "") != (v.get("generated_sql") or "")})
 
+    if args.dump_sent:
+        json.dump(sorted(sent), open(args.dump_sent, "w", encoding="utf-8"))
+        print(f"đã ghi {len(sent)} câu được gửi -> {args.dump_sent}")
+    if missing:
+        print(f"CHƯA ĐỦ: {missing} câu được gửi chưa có kết quả trong {args.execfb_dir}")
+        return
     n = len(recs)
     fixed = sum(1 for r in recs if r["ex_after"] and not r["ex_before"])
     broken = sum(1 for r in recs if r["ex_before"] and not r["ex_after"])

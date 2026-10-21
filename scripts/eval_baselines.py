@@ -72,18 +72,27 @@ def main():
     ap.add_argument("--judge-model", default=None)
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--max-seconds", type=float, default=None)
+    ap.add_argument("--model", default=None, help="mô hình dùng để sửa (mặc định VT_MODEL_LLM)")
+    ap.add_argument("--tag", default="", help="hậu tố tên thư mục kết quả, VD _think")
+    ap.add_argument("--only-ids", default=None, help="file JSON danh sách sample_id cần chạy (bỏ qua câu khác)")
+    ap.add_argument("--limit", type=int, default=None, help="chỉ chạy N câu đầu (thử tốc độ)")
     args = ap.parse_args()
     args.llm, args.semantic = True, False
 
     base = os.path.join("results", "generators", args.gen, args.split)
     outputs = load_jsonl(os.path.join(base, "outputs.jsonl"))
-    out_dir = os.path.join(base, f"baseline_{args.mode}")
+    if args.only_ids:
+        keep = set(json.load(open(args.only_ids, encoding="utf-8")))
+        outputs = [o for o in outputs if o["sample_id"] in keep]
+    if args.limit:
+        outputs = outputs[: args.limit]
+    out_dir = os.path.join(base, f"baseline_{args.mode}{args.tag}")
     os.makedirs(out_dir, exist_ok=True)
     per_path = os.path.join(out_dir, "per_sample.jsonl")
 
     loader = BirdDatasetLoader(args.config)
     by_id = {s.question_id: s for s in loader.samples}
-    llm = LLMClient()
+    llm = LLMClient(model=args.model)
     judge = LLMClient(model=args.judge_model or os.environ.get("VT_MODEL_JUDGE", "gpt-oss-120b")) \
         if args.mode.startswith("execfb_verify") else None
 
@@ -157,6 +166,13 @@ def main():
                 records.append(rec)
                 fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 fout.flush()
+    if args.only_ids or args.limit:
+        n = len(records)
+        print(f"XONG {n}/{len(outputs)} câu | sửa đúng {sum(r['ex_after'] and not r['ex_before'] for r in records)} | "
+              f"làm hỏng {sum(r['ex_before'] and not r['ex_after'] for r in records)} | "
+              f"thời gian sửa TB {sum(r.get('repair_latency_ms') or 0 for r in records) / max(1, n) / 1000:.1f}s | "
+              f"token ra TB {sum(r.get('repair_completion_tokens') or 0 for r in records) / max(1, n):.0f}")
+        return
     if len(records) < len(outputs):
         print(f"CHƯA XONG: {len(records)}/{len(outputs)} — chạy lại với --resume")
         return
