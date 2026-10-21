@@ -1,5 +1,5 @@
 """
-Bản vá "bỏ cột thừa" (DropSelectColumn) — hướng 1 mở rộng.
+Bản vá "bỏ cột thừa" (DropSelectColumn).
 
 Lỗi nhắm tới: câu SQL chạy được nhưng SELECT trả về THÊM cột mà câu hỏi không hỏi
 (VD hỏi "tên người cao nhất" mà trả về cả tên lẫn chiều cao). BIRD so khớp từng dòng kết quả,
