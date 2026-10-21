@@ -45,7 +45,7 @@ VAST_SQL/
 │   ├── eval_corrupted.py   # Lỗi nhân tạo có kiểm soát (theo loại lỗi)
 │   ├── eval_generated.py   # EX trước/sau sửa trên SQL do AI sinh (+ AST-only, ablation, Gate F)
 │   ├── eval_baselines.py   # Đối chứng: LLM rewrite, execution-feedback repair (+ bản có giám khảo)
-│   ├── eval_combined.py    # Phần mở rộng: ghép VASP-SQL → execfb_verify
+│   ├── eval_gated.py       # Phương pháp đề xuất: kết hợp có chốt an toàn (VASP-SQL → Execution-feedback cho câu đáng ngờ)
 │   ├── stats_report.py     # Thống kê cuối: CI 95% bootstrap, McNemar, theo độ khó/db/loại lỗi, chi phí
 │   └── test_llm_connection.py
 ├── tests/                  # 60 test tự động

@@ -73,9 +73,11 @@ Thư mục này chứa toàn bộ các kịch bản thực thi đánh giá bench
 
 ---
 
-### 7. `eval_combined.py` — Ghép VASP-SQL → execfb_verify (phần mở rộng)
-* **Nhiệm vụ:** VASP-SQL (không LLM) xem trước; câu nó không sửa thì lấy kết quả "viết lại + kết quả chạy + giám khảo".
-  Ghép offline từ kết quả từng câu, không gọi LLM thêm.
+### 7. `eval_gated.py` — Kết hợp có chốt an toàn (phương pháp đề xuất)
+* **Nhiệm vụ:** VASP-SQL + bỏ cột thừa chạy trước; câu nó không sửa mà có dấu hiệu đáng ngờ (lỗi chạy, VASP từ chối,
+  rỗng, có NULL, có dòng lặp) thì lấy bản Execution-feedback; còn lại giữ nguyên. Ghép offline từ kết quả từng câu,
+  không gọi LLM thêm. Quy tắc đóng băng ngày 2026-10-19 trên tập tune.
+* **Cách chạy:** `py scripts/eval_gated.py --gen g1 --split report --config configs/bird_may_nay.yaml`
 
 ---
 
