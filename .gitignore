@@ -48,5 +48,6 @@ datasets/
 third_party/
 
 # Kết quả thực nghiệm (chỉ giữ trên máy, không đưa lên git)
-results/
+results/*
+!results/KET_QUA_REPORT.md
 configs/bird_may_nay.yaml
