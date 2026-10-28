@@ -14,7 +14,7 @@ vasp_sql/
 ├── ast/            # Phân tích cú pháp AST (sqlglot), Scope Analyzer, Joins Analyzer
 ├── schema_graph/   # Đồ thị tri thức CSDL (NetworkX) và thuật toán so khớp mờ
 ├── diagnosis/      # Động cơ chẩn đoán lỗi 5 tầng và lỗi giá trị lọc
-├── repair/         # Bộ lập kế hoạch bản vá AST, các thao tác vá và sửa ngữ nghĩa
+├── repair/         # [Gốc] lập kế hoạch + các bản vá AST · [Tinh chỉnh 1] bỏ cột thừa · [Mở rộng] sửa ngữ nghĩa
 ├── verifiers/      # Hệ thống 6 cổng kiểm chứng (Gate A → Gate F)
 ├── llm/            # Client kết nối LLM với bộ nhớ đệm trên đĩa (chạy lại không tốn thêm lượt gọi)
 ├── generators/     # Triển khai 3 phương pháp AI sinh SQL (G1, G2, G3)
@@ -26,12 +26,19 @@ vasp_sql/
 
 ## Chi tiết luồng xử lý chính (`pipeline.py`)
 
-Hàm [`repair(...)`](file:///d:/Projects/VAST_SQL/vasp_sql/pipeline.py) hiện thực hóa Thuật toán 1 (Algorithm 1) từ đề xuất nghiên cứu:
+Hàm `repair(...)` trong `pipeline.py` hiện thực hóa Thuật toán 1 (Algorithm 1) từ đề xuất nghiên cứu.
+Các bước 1–5 là **thuật toán gốc**. Bước 1b là **tinh chỉnh 1** (bỏ cột thừa), chỉ chạy khi bật
+`RepairPolicy.allow_projection_repair` (tham số `--projection`). **Tinh chỉnh 2** (chốt an toàn) không nằm trong
+`repair()` mà ở `scripts/eval_gated.py`.
 
 1. **Kiểm tra ban đầu (Fast Path - Zero Intervention):**
    * Đưa câu SQL gốc qua Gate A (Cú pháp) và Gate B (Schema & Scope & Cartesian Check).
    * Nếu không phát hiện lỗi cấu trúc, đưa tiếp qua Gate D (An toàn) và Gate E (Chạy thử Sandbox).
    * Nếu câu SQL gốc chạy thành công và thỏa mãn Gate F, hệ thống trả về ngay trạng thái **`UNCHANGED`** (tuyệt đối không can thiệp vào câu đúng).
+
+   **1b. [Tinh chỉnh 1] Bỏ cột thừa** (`_projection_attempt`, `repair/projection.py`), chỉ khi bật `--projection`:
+   * Với câu chạy được mà SELECT có nhiều cột, LLM chỉ chọn những cột cần giữ (không viết SQL).
+   * Câu sau khi bớt cột phải qua lại Gate A–E và giữ nguyên số dòng; không đạt thì giữ câu gốc (`UNCHANGED`).
 2. **Chẩn đoán lỗi (Diagnosis Phase):**
    * Nếu câu gốc thất bại ở bất kỳ cổng nào hoặc chạy ra 0 dòng kết quả bất thường:
    * Kích hoạt `DiagnosisEngine` (5 tầng) và `values.py` để lập báo cáo `DiagnosticReport`.

@@ -6,7 +6,7 @@ Thư mục này chịu trách nhiệm biến các chẩn đoán lỗi thành cá
 
 ## Chi tiết các file và nhiệm vụ
 
-### 1. `patches.py` — Các loại Bản vá AST Cục bộ
+### 1. `patches.py` — Các loại Bản vá AST Cục bộ *(thuật toán gốc)*
 * **`BaseASTPatch`**: Lớp trừu tượng cho mọi thao tác vá AST, bắt buộc triển khai `apply(ast) -> (new_ast, was_modified)`.
 * **`ReplaceColumnPatch`**: Vá lỗi gõ sai tên cột. Tự động nhận diện bí danh bảng (`T1.column_name`) hoặc tên bảng gốc để thay thế chính xác node cột mà không làm ảnh hưởng đến cấu trúc câu.
 * **`ReplaceTablePatch`**: Vá lỗi gõ sai tên bảng trong mệnh đề `FROM`/`JOIN`, đồng thời bảo toàn nguyên vẹn bí danh bảng (alias) và các tiền tố tham chiếu.
@@ -15,7 +15,7 @@ Thư mục này chịu trách nhiệm biến các chẩn đoán lỗi thành cá
 
 ---
 
-### 2. `planner.py` — `RepairPlanner`
+### 2. `planner.py` — `RepairPlanner` *(thuật toán gốc)*
 * **Nhiệm vụ:** Bộ lập kế hoạch sửa lỗi và quản lý ứng viên.
 * **`CandidateQuery`**: Đóng gói câu truy vấn ứng viên sau khi được vá (`repaired_sql`, `repaired_ast`, danh sách bản vá đã áp dụng, điểm số chi phí, kích thước biến đổi AST edit size).
 * **`plan_candidates(ast, report, schema, kg)`**: 
@@ -26,7 +26,15 @@ Thư mục này chịu trách nhiệm biến các chẩn đoán lỗi thành cá
 
 ---
 
-### 3. `semantic.py` — Sửa lỗi Ngữ nghĩa Cục bộ bằng LLM (Hướng 2)
+### 3. `projection.py` — Bỏ cột thừa *(tinh chỉnh 1)*
+* **Nhiệm vụ:** Sửa câu chạy được nhưng SELECT trả về thêm cột mà câu hỏi không hỏi (BIRD so khớp từng dòng nên thừa cột là sai).
+* **Cách làm:** LLM chỉ chọn giữ cột nào trong danh sách đang có; bản vá chỉ được **bớt** cột ở SELECT ngoài cùng.
+  Câu sau khi bớt phải qua lại Gate A–E và giữ nguyên số dòng; không chắc thì giữ nguyên câu.
+* **Bật bằng:** `--projection` (`RepairPolicy.allow_projection_repair`). Được gọi từ `_projection_attempt` trong `pipeline.py`.
+
+---
+
+### 4. `semantic.py` — Sửa lỗi Ngữ nghĩa Cục bộ bằng LLM *(hướng mở rộng, không dùng trong kết quả cuối)*
 * **Nhiệm vụ:** Xử lý các câu SQL đã vượt qua Gate A–E (đúng cú pháp, đúng bảng/cột, chạy được) nhưng trả về sai kết quả theo ý câu hỏi tự nhiên.
 * **Quy trình 2 pha có kiểm chứng:**
   * **Pha 1 — Đề xuất sửa cục bộ:** LLM chỉ được phép đề xuất tối đa 2 thao tác sửa trong danh sách cố định:

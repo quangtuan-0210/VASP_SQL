@@ -6,6 +6,9 @@ Thư mục này chứa toàn bộ các kịch bản thực thi đánh giá bench
 
 ## Danh sách các script và nhiệm vụ
 
+**Gốc hay tinh chỉnh:** thuật toán gốc chạy bằng `eval_gold.py`, `eval_corrupted.py`, `eval_generated.py` (mặc định / `--llm`).
+Tinh chỉnh 1 = `eval_generated.py --projection`; tinh chỉnh 2 = `eval_gated.py`. `eval_baselines.py` là đối chứng.
+
 ### 1. `make_splits.py` — Phân chia Tập Dữ liệu Chuẩn
 * **Nhiệm vụ:** Chia 1.534 câu hỏi của BIRD dev thành 2 phần cố định có phân tầng (stratified) theo cặp `(database, độ khó)`:
   * **Tập `tune` (~300 câu):** Dùng để thử nghiệm, tìm lỗi, tinh chỉnh thuật toán và prompt.
@@ -26,7 +29,7 @@ Thư mục này chứa toàn bộ các kịch bản thực thi đánh giá bench
 
 ---
 
-### 3. `eval_gold.py` — Đánh giá Tính Không Phá hoại trên Gold SQL
+### 3. `eval_gold.py` — Đánh giá Tính Không Phá hoại trên Gold SQL *(gốc; `--projection` cho tinh chỉnh 1)*
 * **Nhiệm vụ:** Chạy hệ thống VASP-SQL trên 1.534 câu Gold SQL chuẩn của BIRD dev để đo xem hệ thống có giữ nguyên câu đúng không (`UNCHANGED`) hay sửa làm hỏng kết quả (`Regression Rate`).
 * **Cách chạy:**
   ```powershell
@@ -35,7 +38,7 @@ Thư mục này chứa toàn bộ các kịch bản thực thi đánh giá bench
 
 ---
 
-### 4. `eval_corrupted.py` — Đánh giá Khả năng Sửa Lỗi Cố ý (Corrupted Benchmark)
+### 4. `eval_corrupted.py` — Đánh giá Khả năng Sửa Lỗi Cố ý (Corrupted Benchmark) *(thuật toán gốc)*
 * **Nhiệm vụ:** Thử nghiệm trên 900 câu bị tiêm lỗi có kiểm soát (300 câu gõ sai cột, 300 câu gõ sai bảng, 300 câu thiếu JOIN). Đo lường tỷ lệ sửa đúng, tỷ lệ từ chối (`ABSTAIN`) và tỷ lệ sửa sai.
 * **Cách chạy:**
   ```powershell
@@ -46,13 +49,14 @@ Thư mục này chứa toàn bộ các kịch bản thực thi đánh giá bench
 
 ---
 
-### 5. `eval_generated.py` — Chấm điểm SQL do AI Sinh ra (Trước & Sau VASP-SQL)
+### 5. `eval_generated.py` — Chấm điểm SQL do AI Sinh ra (Trước & Sau VASP-SQL) *(gốc + tinh chỉnh 1)*
 * **Nhiệm vụ:** Đọc kết quả SQL do G1/G2/G3 sinh ra, chạy qua VASP-SQL và so sánh Execution Accuracy (EX) trước và sau khi sửa lỗi.
   Ghi thêm từng câu: loại bản vá, số nút AST thay đổi, token và thời gian của bước sửa.
 * **Cách chạy:**
   ```powershell
   py scripts/eval_generated.py --gen g1 --split report                    # VASP-SQL không LLM (A–E)
   py scripts/eval_generated.py --gen g1 --split report --llm              # VASP-SQL đầy đủ (A–F)
+  py scripts/eval_generated.py --gen g1 --split report --llm --projection # tinh chỉnh 1: + bỏ cột thừa (eval_llm_proj)
   py scripts/eval_generated.py --gen g1 --split report --ast-only         # đối chứng AST-only
   py scripts/eval_generated.py --gen g1 --split report --no-value-repair  # ablation
   py scripts/eval_generated.py --gen g1 --split report --no-schema-graph  # ablation
@@ -73,7 +77,7 @@ Thư mục này chứa toàn bộ các kịch bản thực thi đánh giá bench
 
 ---
 
-### 7. `eval_gated.py` — Kết hợp có chốt an toàn (phương pháp đề xuất)
+### 7. `eval_gated.py` — Kết hợp có chốt an toàn *(tinh chỉnh 2, phương pháp đề xuất cuối)*
 * **Nhiệm vụ:** VASP-SQL + bỏ cột thừa chạy trước; câu nó không sửa mà có dấu hiệu đáng ngờ (lỗi chạy, VASP từ chối,
   rỗng, có NULL, có dòng lặp) thì lấy bản Execution-feedback; còn lại giữ nguyên. Ghép offline từ kết quả từng câu,
   không gọi LLM thêm. Quy tắc đóng băng ngày 2026-10-19 trên tập tune.

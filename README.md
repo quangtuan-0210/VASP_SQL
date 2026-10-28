@@ -18,6 +18,30 @@ theo kế hoạch `VASP-SQL_Plan.docx`.
 
 ---
 
+## Thuật toán gốc và phần tinh chỉnh
+
+Code gồm hai lớp. **Thuật toán gốc** là VASP-SQL theo kế hoạch ban đầu. **Tinh chỉnh** được thêm sau khi phân tích lỗi
+trên tập tune, và đều tắt mặc định (phải bật bằng tham số).
+
+| | Thành phần | Nằm ở đâu | Bật bằng |
+|---|---|---|---|
+| **Gốc** | Gate A–E: kiểm tra cú pháp, schema, kiểu, an toàn, chạy thử | `verifiers/`, `sandbox/` | luôn chạy |
+| **Gốc** | Chẩn đoán lỗi có bằng chứng | `diagnosis/` | luôn chạy |
+| **Gốc** | Vá 1: so khớp tên bảng/cột (Damerau–OSA) | `repair/patches.py`, `schema_graph/` | luôn chạy |
+| **Gốc** | Vá 2: thêm JOIN theo đồ thị khoá ngoại | `repair/patches.py`, `schema_graph/` | luôn chạy (`--no-schema-graph` để tắt) |
+| **Gốc** | Vá 3: sửa giá trị lọc theo dữ liệu thật | `diagnosis/values.py`, `repair/patches.py` | luôn chạy (`--no-value-repair` để tắt) |
+| **Gốc** | Lập ứng viên, ngân sách, UNCHANGED / REPAIRED / ABSTAIN | `repair/planner.py`, `pipeline.py` | luôn chạy |
+| **Gốc** | Gate F: LLM chấm ý định của phần vừa sửa | `verifiers/intent.py` | `--llm` |
+| **Tinh chỉnh 1** | Bỏ cột thừa (DropSelectColumn): LLM chỉ chọn giữ cột, không viết SQL | `repair/projection.py`, `_projection_attempt` trong `pipeline.py` | `--projection` |
+| **Tinh chỉnh 2** | Chốt an toàn: chỉ gửi câu đáng ngờ sang Execution-feedback | `scripts/eval_gated.py` | chạy script riêng |
+| Đối chứng | LLM viết lại cả câu, Execution-feedback | `scripts/eval_baselines.py` | `--mode rewrite / execfb` |
+| Mở rộng, không dùng trong kết quả cuối | Sửa ngữ nghĩa bằng LLM | `repair/semantic.py` | `--semantic` |
+
+Kết quả trên tập report (EX %): bản gốc G1/G2/G3 = 63,61 / 65,24 / 56,40; thêm tinh chỉnh 1 = 63,70 / 65,48 / 60,45;
+thêm tinh chỉnh 2 = 65,07 / 65,32 / 61,10.
+
+---
+
 ## Cấu trúc thư mục
 
 ```text
@@ -32,20 +56,20 @@ VAST_SQL/
 │   ├── ast/                # Parse (sqlglot), phạm vi/bí danh, phân tích JOIN theo từng SELECT
 │   ├── schema_graph/       # Đồ thị khóa ngoại (networkx), so tên gần đúng
 │   ├── diagnosis/          # Chẩn đoán nhiều tầng + lỗi giá trị lọc
-│   ├── repair/             # Bản vá AST, lập phương án; semantic.py = hướng sửa ý nghĩa bằng LLM (phần mở rộng)
-│   ├── verifiers/          # Gate A–E; intent.py = Gate F bằng LLM
+│   ├── repair/             # [Gốc] patches.py, planner.py · [Tinh chỉnh 1] projection.py · [Mở rộng] semantic.py
+│   ├── verifiers/          # [Gốc] Gate A–E; intent.py = Gate F bằng LLM
 │   ├── llm/                # Client chuẩn OpenAI: bộ nhớ đệm, đếm token theo câu, bật/tắt chế độ suy nghĩ
 │   ├── generators/         # G1 một lần gọi · G2 MAC-SQL · G3 LangChain agent
 │   ├── adapters/           # Nạp BIRD, chuẩn hoá đầu ra của các AI
-│   └── pipeline.py         # repair(): chẩn đoán → bản vá → kiểm chứng → chấp nhận / từ chối
+│   └── pipeline.py         # repair(): [Gốc] chẩn đoán → bản vá → kiểm chứng; [Tinh chỉnh 1] bỏ cột thừa khi bật
 ├── scripts/
 │   ├── make_splits.py      # Tạo phần tune / report
 │   ├── run_generator.py    # Cho G1/G2/G3 sinh SQL
 │   ├── eval_gold.py        # Kiểm tra trên SQL đúng (không phá câu đúng)
 │   ├── eval_corrupted.py   # Lỗi nhân tạo có kiểm soát (theo loại lỗi)
-│   ├── eval_generated.py   # EX trước/sau sửa trên SQL do AI sinh (+ AST-only, ablation, Gate F)
+│   ├── eval_generated.py   # EX trước/sau sửa: [Gốc] mặc định, --llm; [Tinh chỉnh 1] --projection
 │   ├── eval_baselines.py   # Đối chứng: LLM rewrite, execution-feedback repair (+ bản có giám khảo)
-│   ├── eval_gated.py       # Phương pháp đề xuất: kết hợp có chốt an toàn (VASP-SQL → Execution-feedback cho câu đáng ngờ)
+│   ├── eval_gated.py       # [Tinh chỉnh 2] chốt an toàn (VASP-SQL → Execution-feedback cho câu đáng ngờ)
 │   ├── stats_report.py     # Thống kê cuối: CI 95% bootstrap, McNemar, theo độ khó/db/loại lỗi, chi phí
 │   └── test_llm_connection.py
 ├── tests/                  # 60 test tự động
@@ -131,9 +155,15 @@ py scripts/run_generator.py --gen g3 --split report
 Chạy lần lượt cho từng AI — thay `g1` bằng `g2`, `g3`:
 
 ```powershell
-# Phương pháp đề xuất
+# Thuật toán gốc
 py scripts/eval_generated.py --gen g1 --split report                    # VASP-SQL không dùng LLM (Gate A–E)
 py scripts/eval_generated.py --gen g1 --split report --llm              # VASP-SQL đầy đủ (thêm Gate F bằng LLM)
+
+# Tinh chỉnh 1: thêm bỏ cột thừa (kết quả lưu ở eval_llm_proj)
+py scripts/eval_generated.py --gen g1 --split report --llm --projection
+
+# Tinh chỉnh 2: chốt an toàn (cần kết quả của tinh chỉnh 1 và của execfb; không gọi LLM thêm)
+py scripts/eval_gated.py --gen g1 --split report
 
 # Đối chứng (mục 5.6 của kế hoạch)
 py scripts/eval_generated.py --gen g1 --split report --ast-only         # AST-only: không đồ thị schema, không sửa giá trị
