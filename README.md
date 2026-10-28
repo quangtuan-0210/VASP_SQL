@@ -1,8 +1,7 @@
 # VASP-SQL: Verified AST-localized SQL Repair
 
 Lớp hậu xử lý độc lập cho SQL do AI (Text-to-SQL agent) sinh ra: **chẩn đoán** lỗi, **sửa cục bộ trên cây cú pháp (AST)**
-và **kiểm chứng nhiều tầng (Gate A → F)** trước khi chấp nhận bản sửa. Đánh giá trên benchmark **BIRD** (SQLite),
-theo kế hoạch `VASP-SQL_Plan.docx`.
+và **kiểm chứng nhiều tầng (Gate A → F)** trước khi chấp nhận bản sửa. Đánh giá trên benchmark **BIRD**.
 
 ---
 
