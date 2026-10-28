@@ -34,8 +34,7 @@ trên tập tune, và đều tắt mặc định (phải bật bằng tham số)
 | **Gốc** | Gate F: LLM chấm ý định của phần vừa sửa | `verifiers/intent.py` | `--llm` |
 | **Tinh chỉnh 1** | Bỏ cột thừa (DropSelectColumn): LLM chỉ chọn giữ cột, không viết SQL | `repair/projection.py`, `_projection_attempt` trong `pipeline.py` | `--projection` |
 | **Tinh chỉnh 2** | Chốt an toàn: chỉ gửi câu đáng ngờ sang Execution-feedback | `scripts/eval_gated.py` | chạy script riêng |
-| Đối chứng | LLM viết lại cả câu, Execution-feedback | `scripts/eval_baselines.py` | `--mode rewrite / execfb` |
-| Mở rộng, không dùng trong kết quả cuối | Sửa ngữ nghĩa bằng LLM | `repair/semantic.py` | `--semantic` |
+| Đối chứng | Execution-feedback: LLM viết lại khi được xem kết quả chạy | `scripts/eval_baselines.py` | `--mode execfb` |
 
 Kết quả trên tập report (EX %): bản gốc G1/G2/G3 = 63,61 / 65,24 / 56,40; thêm tinh chỉnh 1 = 63,70 / 65,48 / 60,45;
 thêm tinh chỉnh 2 = 65,07 / 65,32 / 61,10.
@@ -56,7 +55,7 @@ VAST_SQL/
 │   ├── ast/                # Parse (sqlglot), phạm vi/bí danh, phân tích JOIN theo từng SELECT
 │   ├── schema_graph/       # Đồ thị khóa ngoại (networkx), so tên gần đúng
 │   ├── diagnosis/          # Chẩn đoán nhiều tầng + lỗi giá trị lọc
-│   ├── repair/             # [Gốc] patches.py, planner.py · [Tinh chỉnh 1] projection.py · [Mở rộng] semantic.py
+│   ├── repair/             # [Gốc] patches.py, planner.py · [Tinh chỉnh 1] projection.py
 │   ├── verifiers/          # [Gốc] Gate A–E; intent.py = Gate F bằng LLM
 │   ├── llm/                # Client chuẩn OpenAI: bộ nhớ đệm, đếm token theo câu, bật/tắt chế độ suy nghĩ
 │   ├── generators/         # G1 một lần gọi · G2 MAC-SQL · G3 LangChain agent
@@ -68,11 +67,11 @@ VAST_SQL/
 │   ├── eval_gold.py        # Kiểm tra trên SQL đúng (không phá câu đúng)
 │   ├── eval_corrupted.py   # Lỗi nhân tạo có kiểm soát (theo loại lỗi)
 │   ├── eval_generated.py   # EX trước/sau sửa: [Gốc] mặc định, --llm; [Tinh chỉnh 1] --projection
-│   ├── eval_baselines.py   # Đối chứng: LLM rewrite, execution-feedback repair (+ bản có giám khảo)
+│   ├── eval_baselines.py   # Đối chứng: Execution-feedback repair
 │   ├── eval_gated.py       # [Tinh chỉnh 2] chốt an toàn (VASP-SQL → Execution-feedback cho câu đáng ngờ)
 │   ├── stats_report.py     # Thống kê cuối: CI 95% bootstrap, McNemar, theo độ khó/db/loại lỗi, chi phí
 │   └── test_llm_connection.py
-├── tests/                  # 60 test tự động
+├── tests/                  # 61 test tự động
 └── third_party/MAC-SQL/    # Mã MAC-SQL (không có LICENSE — chỉ dùng nội bộ, không phân phối lại)
 ```
 
@@ -167,7 +166,6 @@ py scripts/eval_gated.py --gen g1 --split report
 
 # Đối chứng (mục 5.6 của kế hoạch)
 py scripts/eval_generated.py --gen g1 --split report --ast-only         # AST-only: không đồ thị schema, không sửa giá trị
-py scripts/eval_baselines.py --gen g1 --split report --mode rewrite     # LLM viết lại cả câu
 py scripts/eval_baselines.py --gen g1 --split report --mode execfb      # LLM viết lại khi được xem kết quả chạy
 
 # Ablation: tắt từng phần để xem phần đó đóng góp bao nhiêu

@@ -1,14 +1,9 @@
 """
-Các phương pháp ĐỐI CHỨNG (mục 5.6 của kế hoạch), chạy trên cùng SQL do một AI sinh ra:
+Phương pháp ĐỐI CHỨNG (mục 5.6 của kế hoạch), chạy trên cùng SQL do một AI sinh ra:
 
-  rewrite        : "LLM viết lại" — đưa câu hỏi, gợi ý, schema và câu SQL cho LLM, yêu cầu kiểm tra
-                   và trả về câu SQL đúng (viết lại cả câu nếu cần). Không định vị AST, không cổng kiểm chứng.
-  execfb         : "sửa theo kết quả chạy" — như rewrite nhưng LLM được xem thêm kết quả chạy
-                   (số dòng, vài dòng đầu, hoặc thông báo lỗi).
-  execfb_verify  : như execfb, nhưng câu viết lại chỉ được nhận nếu GIÁM KHẢO ĐỘC LẬP (cùng giám khảo
-                   với hướng 2) chọn nó thay vì câu gốc — tách riêng tác dụng của "sửa cục bộ".
-  execfb_verify2 : như execfb_verify, nhưng giám khảo chấm 2 lần với vị trí 2 phương án đảo ngược;
-                   chỉ nhận câu viết lại khi cả 2 lần đều chọn nó (chống thiên vị vị trí).
+  execfb : "sửa theo kết quả chạy" (Execution-feedback) — đưa câu hỏi, gợi ý, schema, câu SQL và kết quả chạy
+           (số dòng, vài dòng đầu, hoặc thông báo lỗi) cho LLM, yêu cầu kiểm tra và trả về câu SQL đúng
+           (viết lại cả câu nếu cần). Không định vị AST, không cổng kiểm chứng.
 
 Quy tắc chung (công bằng với lớp sửa lỗi): câu viết lại không tách được SQL hoặc chạy lỗi -> giữ câu gốc.
 Cùng mô hình (VT_MODEL_LLM, hiện là DeepSeek-V4-Pro) như 3 AI sinh SQL; số lượt gọi LLM được ghi lại để so chi phí.
@@ -21,6 +16,7 @@ Ghi: results/generators/<gen>/<split>/baseline_<mode>/{per_sample.jsonl, summary
 import argparse
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -35,7 +31,6 @@ from vasp_sql.adapters.bird_loader import BirdDatasetLoader  # noqa: E402
 from vasp_sql.adapters.cleaner import extract_and_clean_sql  # noqa: E402
 from vasp_sql.generators.schema_prompt import schema_ddl  # noqa: E402
 from vasp_sql.llm import LLMClient  # noqa: E402
-from vasp_sql.repair.semantic import SemanticRepairer, _norm  # noqa: E402
 from vasp_sql.sandbox.executor import SQLiteSandboxExecutor  # noqa: E402
 
 SYSTEM = "You are an expert in SQLite and Text-to-SQL."
@@ -53,6 +48,11 @@ If it is wrong, return a corrected SQLite query.
 Return only the final SQL inside a ```sql code block."""
 
 
+def _norm(s: str) -> str:
+    """Chuẩn hoá để so hai câu SQL (bỏ khoảng trắng, dấu nháy, ngoặc vuông; chữ thường; bỏ ; cuối)."""
+    return re.sub(r"[\s`\"'\[\]]", "", s or "").lower().rstrip(";")
+
+
 def exec_info(feed) -> str:
     if feed is None:
         return ""
@@ -66,10 +66,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--gen", required=True)
     ap.add_argument("--split", default="tune")
-    ap.add_argument("--mode", required=True, choices=["rewrite", "execfb", "execfb_verify", "execfb_verify2"])
+    ap.add_argument("--mode", choices=["execfb"], default="execfb")
     ap.add_argument("--config", default="configs/bird_config.yaml")
     ap.add_argument("--workers", type=int, default=4)
-    ap.add_argument("--judge-model", default=None)
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--max-seconds", type=float, default=None)
     ap.add_argument("--model", default=None, help="mô hình dùng để sửa (mặc định VT_MODEL_LLM)")
@@ -77,7 +76,7 @@ def main():
     ap.add_argument("--only-ids", default=None, help="file JSON danh sách sample_id cần chạy (bỏ qua câu khác)")
     ap.add_argument("--limit", type=int, default=None, help="chỉ chạy N câu đầu (thử tốc độ)")
     args = ap.parse_args()
-    args.llm, args.semantic = True, False
+    args.llm = True
 
     base = os.path.join("results", "generators", args.gen, args.split)
     outputs = load_jsonl(os.path.join(base, "outputs.jsonl"))
@@ -93,8 +92,6 @@ def main():
     loader = BirdDatasetLoader(args.config)
     by_id = {s.question_id: s for s in loader.samples}
     llm = LLMClient(model=args.model)
-    judge = LLMClient(model=args.judge_model or os.environ.get("VT_MODEL_JUDGE", "gpt-oss-120b")) \
-        if args.mode.startswith("execfb_verify") else None
 
     records = load_jsonl(per_path) if args.resume else []
     done = {r["sample_id"] for r in records}
@@ -121,11 +118,9 @@ def main():
         rec["exec_ok_before"] = feed.is_success
         rec["ex_before"] = ex_match(db_path, pred, gold_rows)
         t_rep = time.time()
-        for c in (llm, judge):
-            if c is not None:
-                c.begin_sample()
+        llm.begin_sample()
         prompt = PROMPT.format(schema=schema_ddl(db_path), question=s.question, evidence=s.evidence or "(none)",
-                               sql=pred, exec_info=exec_info(feed) if args.mode != "rewrite" else "")
+                               sql=pred, exec_info=exec_info(feed))
         text = llm.chat([{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}], max_tokens=2000)
         rec["llm_calls"] = 1
         new = extract_and_clean_sql(text)
@@ -135,21 +130,12 @@ def main():
             new_feed = sandbox.execute(new)
             if new_feed.is_success:
                 final, note = new, "rewritten"
-                if args.mode.startswith("execfb_verify"):
-                    sem = SemanticRepairer(llm, judge)
-                    fn = sem.verify_both_orders if args.mode == "execfb_verify2" else sem.verify
-                    ok = fn(s.question, s.question, s.evidence, loader.get_schema(s.db_id),
-                            pred, feed, new, new_feed)
-                    rec["llm_calls"] += len(sem.log)
-                    rec["intent_log"] = sem.log
-                    if not ok:
-                        final, note = pred, "judge rejected rewrite"
             else:
                 note = "rewrite failed to execute"
         rec["status"] = "REPAIRED" if final != pred else "UNCHANGED"
         rec["final_sql"] = final
         rec["note"] = note
-        usage = [c.end_sample() for c in (llm, judge) if c is not None]
+        usage = [llm.end_sample()]
         rec["repair_prompt_tokens"] = sum(u["prompt_tokens"] for u in usage)
         rec["repair_completion_tokens"] = sum(u["completion_tokens"] for u in usage)
         rec["repair_latency_ms"] = round((time.time() - t_rep) * 1000, 1)

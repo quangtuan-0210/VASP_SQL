@@ -64,14 +64,11 @@ Tinh chỉnh 1 = `eval_generated.py --projection`; tinh chỉnh 2 = `eval_gated.
 
 ---
 
-### 6. `eval_baselines.py` — Đánh giá các Phương pháp Đối chứng
-* **Nhiệm vụ:** Đo lường các baseline sửa lỗi truyền thống để so sánh với VASP-SQL:
-  * `rewrite`: LLM viết lại toàn bộ câu SQL từ đầu.
-  * `execfb`: LLM xem câu SQL và lỗi thực thi SQLite để viết lại.
-  * `execfb_verify`: LLM viết lại có kèm giám khảo độc lập chấm điểm.
+### 6. `eval_baselines.py` — Phương pháp Đối chứng Execution-feedback
+* **Nhiệm vụ:** Đo phương pháp đối chứng **Execution-feedback** (`execfb`): LLM xem câu SQL cùng kết quả chạy
+  (số dòng, vài dòng đầu, hoặc thông báo lỗi) rồi viết lại câu nếu thấy sai. Không định vị AST, không cổng kiểm chứng.
 * **Cách chạy:**
   ```powershell
-  py scripts/eval_baselines.py --gen g1 --split report --mode rewrite
   py scripts/eval_baselines.py --gen g1 --split report --mode execfb
   ```
 

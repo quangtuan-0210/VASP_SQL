@@ -16,7 +16,6 @@ py -m pytest -v
 ```powershell
 py -m pytest -v tests/test_phase1.py
 py -m pytest -v tests/test_phase3_2.py
-py -m pytest -v tests/test_phase3_7.py
 ```
 
 ---
@@ -92,15 +91,7 @@ py -m pytest -v tests/test_phase3_7.py
 
 ---
 
-### 9. [`test_phase3_7.py`](file:///d:/Projects/VAST_SQL/tests/test_phase3_7.py) (6 bài test) — Hướng 2 Sửa lỗi Ngữ nghĩa Cục bộ
-* Kiểm tra quy trình 2 pha bằng Fake LLM:
-  * Pha 1: LLM đề xuất thao tác cục bộ (`replace_expression`, `add_condition`, `remove_condition`, `set_limit`, `set_distinct`).
-  * Pha 2: Giám khảo độc lập đối chiếu kết quả thực thi và phê duyệt bản sửa.
-  * Bảo đảm không làm hỏng câu đúng và chặn các thao tác sửa toàn câu.
-
----
-
-### 10. `test_report_tools.py` (5 bài test) — Công cụ báo cáo
+### 9. `test_report_tools.py` (5 bài test) — Công cụ báo cáo
 * Chỉ số "số nút AST thay đổi" đếm cả đổi tên (đổi 1 tên = 1 nút); chỉ số ngân sách cũ giữ nguyên hành vi.
 * Công thức McNemar chính xác (VD 5 câu sửa đúng, 0 câu hỏng → p = 0,0625).
 * LLMClient: tắt chế độ suy nghĩ gửi `thinking: disabled`; đếm token theo từng câu (kể cả lượt lấy từ bộ nhớ đệm);

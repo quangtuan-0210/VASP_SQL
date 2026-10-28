@@ -28,7 +28,6 @@ CONFIGS = [  # (thư mục kết quả, lệnh, có gọi LLM?)
     ("eval_no_value", ["scripts/eval_generated.py", "--no-value-repair"], False),
     ("eval_no_graph", ["scripts/eval_generated.py", "--no-schema-graph"], False),
     ("eval_llm", ["scripts/eval_generated.py", "--llm"], True),
-    ("baseline_rewrite", ["scripts/eval_baselines.py", "--mode", "rewrite"], True),
     ("baseline_execfb", ["scripts/eval_baselines.py", "--mode", "execfb"], True),
 ]
 

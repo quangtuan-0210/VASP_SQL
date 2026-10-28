@@ -39,11 +39,6 @@ class RepairPolicy(BaseModel):
         default=True,
         description="Khi câu hợp lệ nhưng ra rỗng: thử thay giá trị lọc bằng giá trị thật gần nhất trong database."
     )
-    allow_semantic_repair: bool = Field(
-        default=False,
-        description="Hướng 2 (cần llm): với câu đã qua Gate A–E, LLM đề xuất tối đa 2 thao tác sửa cục bộ, "
-                    "hệ thống áp lên AST, kiểm lại A–E, rồi một lượt LLM độc lập chọn giữa câu gốc và câu sửa."
-    )
     allow_projection_repair: bool = Field(
         default=False,
         description="Bản vá bỏ cột thừa (cần llm): câu chạy được mà SELECT trả thêm cột câu hỏi không hỏi -> "

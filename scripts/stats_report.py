@@ -35,7 +35,6 @@ METHODS = [  # (thư mục, tên hiển thị) — các cấu hình trình bày 
     ("gated_execfb", "Kết hợp có chốt an toàn (đề xuất)"),
 ]
 EXTRA_METHODS = [  # phụ lục: đã chạy nhưng không đưa vào bảng chính của báo cáo
-    ("baseline_rewrite", "LLM rewrite"),
     ("eval_ast_only", "AST-only"),
     ("eval", "VASP-SQL không LLM (A–E)"),
     ("eval_llm", "VASP-SQL bản cũ (A–F, chưa có bỏ cột thừa)"),

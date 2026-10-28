@@ -52,8 +52,6 @@ def main():
     ap.add_argument("--split", default="tune")
     ap.add_argument("--config", default="configs/bird_config.yaml")
     ap.add_argument("--llm", action="store_true", help="bật Gate F bằng LLM (đọc .env)")
-    ap.add_argument("--semantic", action="store_true",
-                    help="bật hướng 2: LLM đề xuất sửa lỗi ý nghĩa cục bộ + LLM độc lập kiểm chứng (ngầm bật --llm)")
     ap.add_argument("--ast-only", action="store_true",
                     help="đối chứng AST-only (mục 5.6): không đồ thị schema, không sửa giá trị, không LLM")
     ap.add_argument("--no-value-repair", action="store_true", help="ablation: tắt sửa giá trị lọc")
@@ -61,8 +59,6 @@ def main():
     ap.add_argument("--projection", action="store_true",
                     help="bật bản vá bỏ cột thừa (LLM chọn cột cần giữ; ngầm bật --llm). Kết quả ở eval_llm_proj")
     ap.add_argument("--workers", type=int, default=1, help="số câu chấm song song")
-    ap.add_argument("--judge-model", default=None,
-                    help="mô hình giám khảo của hướng 2 (mặc định VT_MODEL_JUDGE trong .env, hoặc gpt-oss-120b)")
     ap.add_argument("--tag", default="", help="hậu tố tên thư mục kết quả, VD _v2")
     ap.add_argument("--resume", action="store_true")
     ap.add_argument("--max-seconds", type=float, default=None)
@@ -70,17 +66,17 @@ def main():
 
     base = os.path.join("results", "generators", args.gen, args.split)
     outputs = load_jsonl(os.path.join(base, "outputs.jsonl"))
-    if args.semantic or args.projection:
+    if args.projection:
         args.llm = True
     if args.projection:
         args.tag = "_proj" + args.tag
-    if args.ast_only and (args.llm or args.semantic):
-        raise SystemExit("--ast-only không dùng cùng --llm/--semantic")
+    if args.ast_only and args.llm:
+        raise SystemExit("--ast-only không dùng cùng --llm/--projection")
     if args.no_value_repair:
         args.tag = "_no_value" + args.tag
     if args.no_schema_graph:
         args.tag = "_no_graph" + args.tag
-    out_dir = os.path.join(base, ("eval_ast_only" if args.ast_only else ("eval_semantic" if args.semantic else ("eval_llm" if args.llm else "eval"))) + args.tag)
+    out_dir = os.path.join(base, ("eval_ast_only" if args.ast_only else ("eval_llm" if args.llm else "eval")) + args.tag)
     os.makedirs(out_dir, exist_ok=True)
     per_path = os.path.join(out_dir, "per_sample.jsonl")
 
@@ -90,13 +86,8 @@ def main():
     if args.llm:
         from vasp_sql.llm import LLMClient
         llm = LLMClient()
-    judge = None
-    if args.semantic:
-        from vasp_sql.llm import LLMClient
-        judge = LLMClient(model=args.judge_model or os.environ.get("VT_MODEL_JUDGE", "gpt-oss-120b"))
-        print(f"Hướng 2: đề xuất = {llm.model}, giám khảo = {judge.model}")
 
-    policy = RepairPolicy(allow_semantic_repair=bool(args.semantic), allow_projection_repair=bool(args.projection))
+    policy = RepairPolicy(allow_projection_repair=bool(args.projection))
     if args.ast_only:
         policy = RepairPolicy(use_schema_graph=False, allow_value_repair=False)
     if args.no_value_repair or args.no_schema_graph:
@@ -134,12 +125,11 @@ def main():
                 rec["first_failing_gate"] = gate
                 rec["gate_message"] = (msg or "")[:200]
             try:
-                for c in (llm, judge):
-                    if c is not None:
-                        c.begin_sample()
+                if llm is not None:
+                    llm.begin_sample()
                 res = repair(question=s.question, sql=pred, schema=schema, db_path=db_path,
-                             evidence=s.evidence, llm=llm, judge_llm=judge, policy=policy)
-                usage = [c.end_sample() for c in (llm, judge) if c is not None]
+                             evidence=s.evidence, llm=llm, policy=policy)
+                usage = [llm.end_sample()] if llm is not None else []
                 rec["repair_prompt_tokens"] = sum(u["prompt_tokens"] for u in usage)
                 rec["repair_completion_tokens"] = sum(u["completion_tokens"] for u in usage)
                 final = res.final_sql if res.status.value == "REPAIRED" else pred
@@ -200,7 +190,7 @@ def summarize(recs, out_dir, args, llm):
     gen_calls = sum((r.get("gen_meta") or {}).get("llm_calls", 0) or 0 for r in recs)
 
     summary = {
-        "generator": args.gen, "split": args.split, "gate_f_llm": bool(args.llm), "semantic_repair": bool(getattr(args, "semantic", False)), "ast_only": bool(getattr(args, "ast_only", False)), "n": n,
+        "generator": args.gen, "split": args.split, "gate_f_llm": bool(args.llm), "ast_only": bool(getattr(args, "ast_only", False)), "n": n,
         "EX_before_pct": pct(ex_b, n), "EX_after_pct": pct(ex_a, n), "EX_gain_points": round(pct(ex_a, n) - pct(ex_b, n), 2),
         "wrong_before": len(wrong_b), "fixed": len(fixed), "RSR_pct": pct(len(fixed), len(wrong_b)),
         "correct_before": len(right_b), "broken": len(broken), "RR_pct": pct(len(broken), len(right_b)),
@@ -214,7 +204,7 @@ def summarize(recs, out_dir, args, llm):
     with open(os.path.join(out_dir, "summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False)
 
-    L = [f"# {args.gen} trên phần '{args.split}' — trước / sau lớp sửa lỗi" + (" (AST-only: không đồ thị schema, không sửa giá trị, không LLM)" if getattr(args, "ast_only", False) else " (hướng 2: sửa ý nghĩa cục bộ bằng LLM)" if args.semantic else (" (Gate F bằng LLM)" if args.llm else "")), "",
+    L = [f"# {args.gen} trên phần '{args.split}' — trước / sau lớp sửa lỗi" + (" (AST-only: không đồ thị schema, không sửa giá trị, không LLM)" if getattr(args, "ast_only", False) else (" (Gate F bằng LLM)" if args.llm else "")), "",
          f"Số câu: **{n}**", "",
          "| Chỉ số | Giá trị |", "|---|---:|",
          f"| EX trước sửa | {summary['EX_before_pct']}% ({ex_b}/{n}) |",
